@@ -206,7 +206,7 @@ wurden. Jeder Punkt mit Datei, Szenario und Vorschlag.
 
 ## F13 – Sammelposten 2 (kleinere Punkte aus Welle 1)
 
-**Status:** F13a fertig (Welle 2), F13b offen · Je Punkt: Datei, Szenario, Vorschlag. Keine neuen Features.
+**Status:** F13a fertig (Welle 2), F13b fertig (Welle 4; offen: Drei-Teil-Namen, Dubletten-Prüfung auf dem Server, To-Dos erledigter Phasen in „Meine To-Dos" – Entscheidung) · Je Punkt: Datei, Szenario, Vorschlag. Keine neuen Features.
 
 **F13a (Welle 2, parallel zu F7/F10) – fertig** – nur Punkte, deren Dateien weder F7 noch F10 gehören:
 Kopfzeile auf dem Handy, `lead` einer Aktivität per API sperren, Original-Dateinamen, Editor
@@ -712,7 +712,7 @@ API-Tests `scripts/test-api-gates.mjs` (neu)
 
 ## F15 – MCP-Server für Agents
 
-**Status:** Idee · **Abhängig von:** – (Kern); F7 für `my_todos` · **Migration reserviert:**
+**Status:** Version 1 fertig (Welle 4) · **Abhängig von:** – (Kern); F7 für `my_todos` · **Migration reserviert:**
 `1793190006_api_tokens.js`
 
 **Ziel:** Mitarbeiter greifen mit ihren eigenen Agents (Claude Code, Claude Desktop u. a.)
@@ -767,6 +767,16 @@ auf das CRM zu: Leads nachschlagen, Verlauf zusammenfassen, Pipeline auswerten.
   widerrufener oder falscher Token → 401.
 * Integrationstests gegen Wegwerf-PocketBase (Token-Tausch, Rules), Unit-Tests für die
   Aufbereitung der Antworten.
+
+**Umgesetzt in Version 1 (Welle 4), über den Vorschlag hinaus:** getauschte Tokens leben 60 s
+und dürfen in PocketBase nur lesen (Middleware, auch außerhalb des Dienstes); Token-Tausch nur
+mit Shared Secret `CRM_MCP_SECRET`; Host-/Origin-Prüfung; keine JSON-RPC-Batches; Fremdtext mit
+zufälliger Marke pro Antwort. Betrieb: README „Mit MCP-Server für Agents".
+
+**Offen nach Version 1** (klein): kein globales Rate-Limit für unbekannte Tokens (nur pro
+gültigem Token); `search` bei Umlauten groß/klein-sensitiv (SQLite-LIKE); kein Protokoll der
+Phasenwechsel (Wochenbericht sagt das); Gate-Warnungen nur in `get_lead`; Umbenennen eines
+Tokens ohne UI.
 
 ---
 
@@ -862,7 +872,7 @@ noch `lib/todos/`.
 
 **Integration 3:** mergen (F8 → F12), Gesamttest, Doku.
 
-### Welle 4 – läuft: F13b + F15 (F14 nach Klärung)
+### Welle 4 – F13b + F15 erledigt, F14 nach Klärung
 
 | Agent | Feature | Ports | Besitzt / darf ändern |
 |---|---|---|---|

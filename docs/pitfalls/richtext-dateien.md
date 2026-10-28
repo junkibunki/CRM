@@ -41,6 +41,9 @@ HTML aus Nutzereingaben anzeigst oder Dateifelder mit `protected: true` nutzt.
 * **Tiptaps `getHTML()` lädt externe Bilder:** es baut `<img>` im Seitendokument, und ein
   `<img>` lädt sein `src` auch ungehängt (Tracking beim Bearbeiten). Das eigene `editorHtml()`
   serialisiert in `document.implementation.createHTMLDocument()`, das nichts lädt.
+* **HTML → Text (MCP, `mcp/src/format.js`):** Tiptap setzt `<p>` in jedes `<li>` und `<td>`;
+  vorher entfernen, sonst Leerzeilen zwischen Listenpunkten und zerrissene Tabellenzeilen.
+  `fields=body:excerpt(…)` macht aus Listen Fließtext — für Struktur den vollen Body holen.
 * **Tabellen im Bereiniger:** erlaubt sind table/thead/tbody/tfoot/tr/th/td, `colspan`/`rowspan`
   nur 1–99 und in `ADD_URI_SAFE_ATTR` (sonst verwirft das eigene `ALLOWED_URI_REGEXP` sie);
   kein style/width/background.

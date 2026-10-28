@@ -15,6 +15,7 @@ Seite mit Live-Daten baust.
 | `stage_requirements` | `label`*, `type`* (`flag`, `text`), `hint`, `rank` | `column`* → board_columns (cascade, unveränderlich) |
 | `lead_checks` | `value` (bei `flag` `"true"`, Text getrimmt) · Unique (`lead`, `requirement`) | `lead`* → leads (cascade), `requirement`* → stage_requirements (cascade), `by` → users |
 | `lead_check_events` | Protokoll, nur per Hook: `action` (`confirmed`, `changed`, `revoked`), `value`, `requirement_label` (Kopie) | `lead`* (cascade), `requirement` (wird geleert), `by` |
+| `api_tokens` | `name`, `token_hash` + `key_check` (*hidden*, nur sha256), `last_used` · anlegen nur per Route | `user`* → users (cascade); nur eigene sichtbar, nur `name` änderbar |
 | `leads` | `title`*, `expected_close` (optional), `rank`* | `company`* → companies, `contacts`* → contacts (1–50), `owner`* → users, `column`* → board_columns |
 
 `*` = Pflicht. `created`/`updated` sind `autodate`-Felder; das Erstellungsdatum eines
@@ -66,6 +67,9 @@ Sperren eines Mitarbeiters genügt es, sein Passwort zu ändern.
   neuen Bedingungen (Rule), ihre alten zählen aber **für spätere Phasen weiter**.
   `lead_checks.by` ist optional, weil Superuser (Admin-UI, Import) keine `users` sind; für
   Nutzer erzwingt die Rule `by = @request.auth.id`.
+* **Hidden-Felder im Body eines Nutzers werden still verworfen** (200, nichts ändert sich),
+  bevor die Rule sie sieht — `@request.body.x:isset = false` greift dort nie. Prüfen über die
+  Superuser-Ansicht, nicht über den Statuscode.
 * **Update-Rule verletzt → 404, nicht 400/403.** Symptom: PATCH mit falschem `by` liefert „The
   requested resource wasn't found". PocketBase wendet die Update-Rule als Filter an; API-Tests
   erwarten 404.

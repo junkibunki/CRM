@@ -4,6 +4,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
 
 const PB_URL = process.env.PB_URL ?? 'http://127.0.0.1:8090';
+const MCP_URL = process.env.MCP_URL ?? 'http://127.0.0.1:8200';
 
 export default defineConfig({
 	plugins: [
@@ -30,9 +31,10 @@ export default defineConfig({
 			'@tiptap/pm/model'
 		]
 	},
-	// dev: forward API calls to the local PocketBase instance (PB_URL: parallel agent envs)
+	// dev: forward API calls to the local PocketBase instance (PB_URL: parallel agent envs) and
+	// /mcp to the MCP service, so the profile page shows a working URL
 	server: {
-		proxy: { '/api': PB_URL, '/_/': PB_URL }
+		proxy: { '/api': PB_URL, '/_/': PB_URL, '/mcp': MCP_URL }
 	},
 	// runes ($state/$derived) only react in the client build, hence browser conditions + jsdom
 	resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,

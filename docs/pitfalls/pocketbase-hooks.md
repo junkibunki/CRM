@@ -48,6 +48,15 @@ throw new BadRequestError(message, { text: new ValidationError('duplicate', mess
   der 0.40-VM. Ein `ValidationError` aus `tx.save()` kommt in einer Route als 400 mit Felddaten an.
 * **Antworten ohne zu speichern:** `return e.json(200, e.record.original())` ohne `e.next()` —
   kein `updated`, kein Realtime-Event, kein Protokoll (gleicher Wert erneut gespeichert).
+* **In `onRecordUpdateRequest`/`onRecordDeleteRequest` ist `e.request` `undefined`.** Symptom:
+  `TypeError: Cannot read property 'header' of undefined`, beim Client ein nacktes 400
+  „Something went wrong…". Header über `e.requestInfo().headers['authorization']` (Namen klein).
+* **Agent-Tokens (F15) erkennen:** `$security.parseUnverifiedJWT` → `type = auth`,
+  `collectionId` = `users`, `refreshable !== true` (Boolean). Normale Logins haben `true`,
+  Superuser eine andere Collection. Eine `routerUse`-Middleware (`api-tokens.pb.js`) lässt für
+  solche Tokens nur GET/HEAD/OPTIONS durch — auch Superuser-„Impersonate"-Tokens sind statisch
+  und damit nur lesend (bewusst). `key_check` bindet API-Tokens an `tokenKey` und
+  `users.authToken.secret`: Passwortwechsel oder Secret-Rotation widerruft sie.
 * **Felder einer Collection dynamisch:** über `collection.fields` mit `f.getSystem()`,
   `f.type()` (eine Methode!) und `f.getName()`; `autodate` überspringen. Eine feste Feldliste
   verschluckt später ergänzte Felder lautlos.

@@ -43,7 +43,7 @@ Umfang der Korrektur, nicht nach der Zahl der Findings:
 * **`npm run dev` führt vorher die Unit-Tests aus** und zeigt das Ergebnis an, damit beim
   Starten sichtbar ist, ob alles noch funktioniert. `npm run build` bricht bei roten Tests
   ab. Vor jedem Commit: `npm test` grün, bei Schema/Rules/Hooks zusätzlich
-  `npm run test:api` (beides aus `web/`). `auth.refresh(maxAge)` darf eine wenige Sekunden
+  `npm run test:api`, bei `mcp/` oder Hooks `npm run test:mcp` (alles aus `web/`). `auth.refresh(maxAge)` darf eine wenige Sekunden
   alte erfolgreiche Prüfung desselben Tokens wiederverwenden; `liveSync` tut das nur fürs
   erste Laden (5 s), damit eine Seite mit mehreren Live-Quellen nicht mehrfach fragt.
 * Werkzeuge: `web/src/lib/test/pb-mock.ts` (PocketBase-Client im Speicher: Realtime-Events,
@@ -144,13 +144,19 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       └── routes/                # +layout.ts (ssr=false), +layout.svelte (Guard +
 │                                  # Navigation), +page.svelte (-> /leads),
 │                                  # leads/ (Pipeline), leads/[id]/ (Detailseite), todos/,
-│                                  # kontakte/, unternehmen/, login/
+│                                  # kontakte/, unternehmen/, login/, profil/ (API-Tokens,
+│                                  # lib/tokens/)
+├── mcp/                           # MCP-Dienst (Node, eigenes package.json, nur lesen): server.js
+│                                  # (Host/Origin, Token-Tausch pro Request), tools.js, prompts.js,
+│                                  # render.js/format.js (Text, Kürzen, FREMDTEXT-Marken); liest
+│                                  # ../pocketbase/pb_hooks/stage-gates-lib.js
 ├── pocketbase/
 │   ├── pocketbase(.exe)           # gitignored, gepinnt in scripts/get-pocketbase.sh
 │   ├── pb_migrations/             # JS-Migrationen, laufen beim Start automatisch
 │   ├── pb_hooks/                  # attachment-names (Original-Dateinamen), company-lookup
 │   │                              # (GET /api/crm/company-lookup, ruft curl auf), stage-gates
-│   │                              # (Gate-Prüfung, Protokoll, POST /api/crm/leads), je *.pb.js + -lib.js
+│   │                              # (Gate-Prüfung, Protokoll, POST /api/crm/leads), api-tokens
+│   │                              # (Token anlegen/tauschen, Agent-Tokens nur lesend), je *.pb.js + -lib.js
 │   ├── pb_data/                   # gitignored, die SQLite-DB
 │   └── pb_public/                 # gitignored, Build-Output
 ├── scripts/get-pocketbase.sh      # lädt das gepinnte PocketBase-Binary (+ Prüfsumme)
@@ -160,7 +166,7 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │                                  # führt alle aus (neue Datei wird automatisch mitgetestet)
 ├── scripts/agent-env.sh           # eigene Ports (PB 810n, Vite 518n) + Datenbank pro Worktree;
 │                                  # dort nie launch.json/Browser-Pane (siehe testen.md)
-└── web/scripts/predev.mjs         # Unit-Tests vor npm run dev, Ergebnis gut sichtbar
+└── web/scripts/predev.mjs         # Unit-Tests (web + mcp) vor npm run dev, Ergebnis gut sichtbar
 ```
 
 Ein Prozess serviert alles: PocketBase liefert `pb_public/` inkl. SPA-Fallback auf
