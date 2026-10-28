@@ -561,6 +561,108 @@ und `KanbanColumn.svelte` (Badge, Schloss), `web/src/lib/kanban/LeadDialog.svelt
 
 ---
 
+## F14 – Import aus HubSpot (CSV-Export)
+
+**Status:** Idee · **Abhängig von:** F3 (Aktivitäten) · **Migration reserviert:**
+`1793190005_hubspot_import.js` (falls Felder nötig)
+
+**Ziel:** Bestehende Daten aus HubSpot einmalig übernehmen: Unternehmen, Kontakte, Deals
+(→ Leads) und Notizen/Aktivitäten, mit ihren Verknüpfungen.
+
+**Entscheidungen (geklärt)**
+* **Einmalige Migration**, kein laufender Abgleich. Ein zweiter Lauf soll trotzdem keine
+  Dubletten erzeugen (Abgleich über E-Mail bzw. Domain, siehe unten).
+* **Nur Admins** dürfen importieren.
+
+**Zuordnung (Vorschlag)**
+* Companies → `companies`: Name, Domain → `website`, Telefon, Adresse (Straße, PLZ, Ort,
+  Land zu `address` zusammengesetzt). Dublette = gleiche Domain.
+* Contacts → `contacts`: Vorname, Nachname, E-Mail, Telefon, Position; Unternehmen über die
+  zugeordnete Company-ID aus dem Export. Dublette = gleiche E-Mail.
+* Deals → `leads`: Name → `title`, Close Date → `expected_close`, Deal Owner → `owner`
+  (per E-Mail auf `users`), Deal-Phase → Pipeline-Phase über eine **Zuordnungstabelle**,
+  die der Admin vor dem Import festlegt; Unternehmen/Kontakte über die Assoziationen.
+* Notes/E-Mails/Meetings → `activities` (`note`, `email_in`/`email_out`, `meeting`),
+  `occurred_at` aus dem HubSpot-Zeitstempel, HTML durch `sanitize.ts`.
+* Die HubSpot-Spaltennamen hängen von der Kontosprache ab (deutsch/englisch): Spalten
+  per Zuordnung erkennen, nicht fest verdrahten.
+
+**Offene Punkte (vor Umsetzung klären)**
+* **Echte Export-Dateien besorgen** und Format prüfen — besonders, wie HubSpot
+  Assoziationen (IDs vs. Namen) und Aktivitäten exportiert. Danach die Zuordnung
+  festschreiben.
+* Umsetzung als Admin-Skript (`scripts/import-hubspot.mjs`, Superuser, mit Probelauf
+  `--dry-run`) oder als Seite in der App? Für eine einmalige Migration genügt das Skript.
+* Anhänge von Notizen mit übernehmen?
+
+**Akzeptanzkriterien (Entwurf)**
+* Probelauf zeigt: wie viele Datensätze je Art angelegt/übersprungen werden, nicht
+  zuordenbare Zeilen mit Grund (fehlende Phase, unbekannter Owner, Company-ID ohne Treffer).
+* Verknüpfungen bleiben erhalten; ein zweiter Lauf legt nichts doppelt an.
+* Parser und Zuordnung als reine Funktionen mit Unit-Tests (anonymisierte Beispiel-CSVs).
+
+---
+
+## F15 – MCP-Server für Agents
+
+**Status:** Idee · **Abhängig von:** – (Kern); F7 für `my_todos` · **Migration reserviert:**
+`1793190006_api_tokens.js`
+
+**Ziel:** Mitarbeiter greifen mit ihren eigenen Agents (Claude Code, Claude Desktop u. a.)
+auf das CRM zu: Leads nachschlagen, Verlauf zusammenfassen, Pipeline auswerten.
+
+**Entscheidungen (geklärt)**
+* **Anmeldung per persönlichem API-Token**, kein OAuth. Der Agent handelt immer **als
+  dieser Nutzer**; es gelten dessen PocketBase-Rules.
+* **Version 1 nur lesen.** Schreiben (Aktivität, To-Do, Kontakt, Lead anlegen) und **Leads
+  verschieben** kommen in Version 2.
+* **Löschen nie** über den MCP-Server.
+* **Vorlagen (MCP-Prompts)** gehören dazu.
+
+**Umsetzung (Vorschlag)**
+* Eigener kleiner Node-Dienst `mcp/` mit dem offiziellen MCP-TypeScript-SDK, Streamable
+  HTTP unter `/mcp`, hinter demselben Reverse-Proxy wie PocketBase; spricht über die
+  REST-API mit PocketBase. (Ein PocketBase-Hook kann das SDK nicht laden.)
+* **Token:** Collection `api_tokens` (`user`, `name`, `token_hash`, `last_used`, `created`;
+  für Nutzer nur die eigenen sichtbar). Der Token wird einmal angezeigt, gespeichert wird
+  nur der Hash. Eine Hook-Route tauscht den Token gegen ein kurzlebiges Auth-Token des
+  Nutzers; der MCP-Dienst braucht so **keine Superuser-Zugangsdaten**. Verwaltung
+  (anlegen, benennen, widerrufen) auf einer Profilseite.
+* Antworten knapp halten: Aktivitäten als Text statt HTML, lange Inhalte gekürzt,
+  Listen mit Limit und Seitenweise.
+
+**Tools (Version 1, nur lesen)**
+* `search` – Unternehmen, Kontakte, Leads nach Name/E-Mail/Domain.
+* `get_lead` – Lead mit Phase, Zuständigem, Unternehmen, Kontakten, letzten Aktivitäten
+  und offenen To-Dos.
+* `get_company`, `get_contact` – inkl. zugehöriger Leads bzw. Kontakte.
+* `list_pipeline` – Phasen mit ihren Leads (filterbar nach Zuständigem).
+* `list_activities` – je Lead, filterbar nach Art und Zeitraum.
+* `my_todos` – offene To-Dos, überfällig/heute/später (nach F7).
+
+**Vorlagen (Prompts)**
+* „Lead-Briefing vor einem Termin" – Stand, Verlauf, Ansprechpartner, offene Punkte.
+* „Wochenbericht meiner Pipeline" – Bewegungen, neue Aktivitäten, Überfälliges.
+* „Leads ohne nächsten Schritt / überfällig".
+* „Meeting nachbereiten" – entwirft Notiz und To-Dos (Version 1 als Text zum Einfügen,
+  ab Version 2 direkt speichern).
+
+**Sicherheit**
+* Aktivitäten enthalten fremden Text (eingefügte E-Mails) → möglicher Prompt-Injection-
+  Kanal. Für Version 1 unkritisch (nur lesen); vor Version 2 Schreib-Tools klein und
+  eindeutig halten, keine Massenänderungen pro Aufruf.
+* Rate-Limit pro Token, Protokoll der Aufrufe (`last_used`, ab Version 2 wer was schrieb),
+  Token widerrufbar.
+
+**Akzeptanzkriterien (Entwurf)**
+* Claude Code verbindet sich mit URL + Token und findet einen Lead per Name.
+* Ein Nutzer sieht über den MCP-Server nichts, was er in der App nicht sieht;
+  widerrufener oder falscher Token → 401.
+* Integrationstests gegen Wegwerf-PocketBase (Token-Tausch, Rules), Unit-Tests für die
+  Aufbereitung der Antworten.
+
+---
+
 ## Umsetzungsplan: Wellen mit parallelen Sub-Agents
 
 Grundidee: Innerhalb einer Welle fasst **keine Datei mehr als ein Agent** an. Was mehrere
