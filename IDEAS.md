@@ -13,6 +13,9 @@ Umsetzung gelten für **jeden** Agenten:
   hinein muss, schreibt der Agent unter „Notizen für die Doku" in seinen Abschlussbericht;
   zusammengeführt wird zentral.
 * Migrationen nur mit der reservierten Nummer des Features.
+* **Neue npm-Pakete nicht selbst installieren** (`package.json`/Lockfile würden sich
+  zwischen parallelen Agents überschreiben): benötigte Pakete stehen beim Feature unter
+  „Zentral vorab" und werden vor dem Start installiert; fehlt eins, im Bericht melden.
 * Live-Daten immer über `liveSync()` / `LiveCollection`, Dialoge speichern nur geänderte
   Felder (`changedFields()`).
 * Fertig heißt: `npm run check` und `npm run build` grün, im Browser selbst geprüft
@@ -144,6 +147,8 @@ keine Autor-Beschränkung). `author` bleibt beim Bearbeiten unverändert (Rule:
 `web/src/lib/activities/` (neu: Store, `ActivityTimeline.svelte`, `ActivityForm.svelte`,
 `ActivityItem.svelte`, eigene `types.ts`)
 **Darf ändern:** `scripts/seed-dev.mjs` (Demo-Aktivitäten anhängen, am Ende der Datei)
+**Zentral vorab (nicht vom Agenten):** `@tiptap/core`, `@tiptap/starter-kit`,
+`@tiptap/extension-link`, `dompurify` in `web/package.json`.
 
 ---
 
@@ -306,52 +311,103 @@ mit F3 der Button „To-Do daraus anlegen".
 
 ---
 
-## F9 – Kontakt aus E-Mail-Adresse anlegen (Vorschläge für Name und Unternehmen)
+## F9 – Kontakt aus E-Mail-Adresse: Name und Unternehmen vorschlagen (Stufe 1)
 
-**Status:** Idee · **Abhängig von:** – · Stufen einzeln umsetzbar
+**Status:** offen · **Abhängig von:** – · **Migration:** keine
 
-**Ziel:** Beim Anlegen eines Kontakts genügt die E-Mail-Adresse; Vorname, Nachname und
-Unternehmen werden **vorgeschlagen** (nicht stumm angelegt), der Nutzer bestätigt oder
-korrigiert.
+**Ziel:** Beim Anlegen eines Kontakts genügt die E-Mail-Adresse. Vorname, Nachname und
+Unternehmen werden sofort und rein deterministisch im Client **vorgeschlagen** — nichts
+wird ohne Bestätigung angelegt.
 
-**Stufe 1 – deterministisch, im Client (klein)**
-* Name aus dem lokalen Teil: `anna.mueller@`, `anna_mueller@`, `anna-mueller@` →
-  „Anna" / „Mueller"; Großschreibung, Doppelnamen (`hans-peter.schmidt`). Umlaute nur als
-  Vorschlag (`mueller` → „Müller?"), weil nicht eindeutig. `a.mueller@` → nur Nachname;
-  `annamueller@` → kein Vorschlag (nicht trennbar).
-* Rollen-Adressen (`info@`, `vertrieb@`, `kontakt@`, `office@`, `noreply@` …) → kein Name.
-* Domain → **vorhandenes Unternehmen** vorauswählen (Abgleich mit `companies.website`,
-  ohne `www.`). Freemail-Domains (gmail, gmx, web.de, outlook, t-online, icloud …) → kein
-  Unternehmen.
-* Unbekannte Firmen-Domain → Vorschlag „Neues Unternehmen: <domain>" mit Website.
-
-**Stufe 2 – Website lesen, serverseitig (mittel)**
-* Neue Route als PocketBase-Hook (Browser kann fremde Seiten wegen CORS nicht laden):
-  ruft `https://<domain>` und `/impressum` ab, liest `og:site_name`, `<title>`, und aus dem
-  Impressum per Muster Firmenname mit Rechtsform (GmbH, AG, KG, UG …), Adresse, Telefon.
-  Vorschlag im Dialog, Übernahme per Klick.
-* **Kein Google-Scraping:** verstößt gegen die Nutzungsbedingungen und wird geblockt; die
-  Domain aus der E-Mail führt ohnehin direkt zur Website. Falls eine Suche nötig wird: eine
-  offizielle Such-API (kostenpflichtig) oder Handelsregister-Daten (z. B. North Data, API).
-* **Sicherheit (Pflicht):** die Route darf nur die Domain aus der E-Mail abrufen, nur
-  `https`, keine IP-Literale, kein `localhost`/interne Namen, kurze Timeouts, Größenlimit
-  (z. B. 1 MB), keine Weiterleitung auf andere Hosts — sonst kann jeder Nutzer den Server
-  interne Adressen abfragen lassen (SSRF). Hook-Fallstricke: `docs/pitfalls/pocketbase-hooks.md`.
-
-**Stufe 3 – KI-Extraktion (optional, klein)**
-* Text von Startseite + Impressum an die Claude-API, strukturierte Antwort (Name,
-  Rechtsform, Adresse, Branche, Kurzbeschreibung). Robuster als Regex bei ungewöhnlichen
-  Seiten; kostet Bruchteile eines Cents pro Abruf, braucht einen API-Key auf dem Server.
+**Regeln für die Vorschläge**
+* **Name aus dem lokalen Teil:** `anna.mueller@`, `anna_mueller@`, `anna-mueller@` →
+  Vorname „Anna", Nachname „Mueller"; Großschreibung je Namensteil; Doppelnamen
+  (`hans-peter.schmidt@` → „Hans-Peter" / „Schmidt"); Ziffern am Ende ignorieren
+  (`anna.mueller2@`).
+* **Umlaute** nur als zusätzlicher Vorschlag (`mueller` → „Müller?" per Klick übernehmbar),
+  weil nicht eindeutig (`Mueller` gibt es auch so).
+* **Nicht eindeutig → kein Vorschlag:** `a.mueller@` → nur Nachname „Mueller";
+  `annamueller@` → nichts (nicht trennbar); mehr als drei Teile → nichts.
+* **Rollen-Adressen** (`info@`, `kontakt@`, `vertrieb@`, `sales@`, `office@`, `service@`,
+  `support@`, `buchhaltung@`, `noreply@`, `no-reply@` …) → kein Name.
+* **Unternehmen aus der Domain:** Domain (ohne `www.`) mit `companies.website` abgleichen →
+  vorhandenes Unternehmen vorauswählen. Freemail-Domains (gmail, googlemail, gmx, web.de,
+  outlook, hotmail, live, yahoo, t-online, icloud, me, aol, posteo, mailbox.org, freenet …)
+  → kein Unternehmen.
+* **Unbekannte Firmen-Domain** → Vorschlag „Neues Unternehmen anlegen: <Domain>" mit
+  Website `https://<domain>` und einem aus der Domain abgeleiteten Namen
+  (`mueller-maschinenbau.de` → „Mueller Maschinenbau"); Anlegen erst per Klick, über den
+  bestehenden `CompanyDialog` (vorausgefüllt).
 
 **Akzeptanzkriterien**
-* E-Mail eingeben → Vorschläge erscheinen sofort (Stufe 1) bzw. nach kurzer Zeit mit
-  Ladeanzeige (Stufe 2/3); nichts wird ohne Bestätigung angelegt.
-* Vorhandene Unternehmen werden erkannt, nie doppelt angelegt (Domain-Abgleich).
-* Auch im Lead-Dialog („+ Neu" bei Kontakten) nutzbar.
+* Im `ContactDialog` steht die E-Mail als **erstes** Feld; Vorschläge erscheinen beim
+  Verlassen des Feldes (oder nach kurzer Tipp-Pause) als übernehmbare Chips neben den
+  Feldern. Bereits ausgefüllte Felder werden nie überschrieben.
+* Funktioniert auch über „+ Neu" bei Kontakten im Lead-Dialog; ist dort schon ein
+  Unternehmen gewählt, hat dieses Vorrang vor dem Domain-Vorschlag.
+* Vorhandene Unternehmen werden erkannt, ein Unternehmen wird nie doppelt angelegt.
+* Die Erkennung ist eine reine Funktion `suggestFromEmail(email, companies)` mit
+  **Unit-Tests** für alle Muster oben (Vitest).
 
-**Besitzt:** `web/src/lib/crm/email-suggest.ts` (neu, Stufe 1, mit Unit-Tests der
-Muster), `pocketbase/pb_hooks/company-lookup.pb.js` + `company-lookup-lib.js` (Stufe 2/3)
+**Besitzt:** `web/src/lib/crm/email-suggest.ts` (neu), `web/src/lib/crm/email-suggest.test.ts` (neu)
 **Darf ändern:** `web/src/lib/crm/ContactDialog.svelte`, `web/src/lib/crm/CompanyDialog.svelte`
+(nur: Vorbelegung per Prop)
+**Zentral vorab (nicht vom Agenten):** Vitest als devDependency und `test`-Skript in
+`web/package.json`.
+
+---
+
+## F10 – Unternehmensdaten von der Website vorschlagen (Stufe 2)
+
+**Status:** offen · **Abhängig von:** F9 (nutzt dessen Domain-Erkennung und ändert
+dieselben Dialoge — **nach F9** umsetzen) · **Migration:** keine
+
+**Ziel:** Für eine unbekannte Firmen-Domain liest der Server die Website und das Impressum
+und schlägt Firmenname, Adresse, Telefon und E-Mail vor.
+
+**Umsetzung**
+* PocketBase-Route `GET /api/crm/company-lookup?domain=<domain>` (Hook), nur für
+  angemeldete Nutzer. Der Browser kann fremde Seiten wegen CORS nicht selbst laden.
+* Ruft `https://<domain>/` ab und sucht das Impressum (Link mit Text „Impressum"/„Imprint",
+  sonst `/impressum`, `/imprint`). Liest `og:site_name`, `<title>` und aus dem Impressum per
+  Muster: Firmenname mit Rechtsform (GmbH, AG, KG, OHG, UG (haftungsbeschränkt), GmbH & Co.
+  KG, e. K., e. V. …), Straße + PLZ + Ort, Telefon, E-Mail.
+* Antwort: `{ name, address, phone, email, website, source }` mit leeren Feldern, wo nichts
+  sicher erkannt wurde; Ergebnis pro Domain 24 h zwischenspeichern.
+* Im Dialog: „Daten von <domain> laden" (bzw. automatisch nach F9-Erkennung einer
+  unbekannten Domain) mit Ladeanzeige; Vorschläge feldweise übernehmbar.
+* **Kein Google-Scraping** (Nutzungsbedingungen, wird geblockt); die Domain aus der E-Mail
+  führt direkt zur Website. Falls später eine Suche nötig wird: offizielle Such-API oder
+  Handelsregister-Daten (z. B. North Data) als eigenes Feature.
+
+**Sicherheit (Pflicht)**
+* Nur die übergebene Domain (gültiger Hostname, kein IP-Literal, kein `localhost`, keine
+  internen Namen ohne Punkt, keine Ports), nur `https`, Weiterleitungen nur auf dieselbe
+  Domain (bzw. `www.`), Timeout ≈ 5 s pro Abruf, Größenlimit ≈ 1 MB, höchstens 3 Abrufe pro
+  Lookup. Sonst kann jeder Nutzer den Server interne Adressen abfragen lassen (SSRF).
+* Rate-Limit pro Nutzer (z. B. 20 Lookups/Minute).
+* Abgerufenes HTML nie ungefiltert anzeigen, nur extrahierte Textfelder.
+
+**Akzeptanzkriterien**
+* Für typische deutsche Firmenseiten mit Impressum werden Name mit Rechtsform und Adresse
+  erkannt (mit 5 echten Beispiel-Domains im Abschlussbericht belegen).
+* Nicht erreichbare oder blockierte Seiten → verständliche Meldung, Dialog bleibt nutzbar.
+* Nichts wird automatisch angelegt.
+* Vor dem Schreiben `docs/pitfalls/pocketbase-hooks.md` lesen (JS-VM: kein Modulscope im
+  Callback, `res.body` ist ein Byte-Array, Neustart nach Hook-Änderung).
+
+**Besitzt:** `pocketbase/pb_hooks/company-lookup.pb.js`, `pocketbase/pb_hooks/company-lookup-lib.js` (neu)
+**Darf ändern:** `web/src/lib/crm/ContactDialog.svelte`, `web/src/lib/crm/CompanyDialog.svelte`
+
+---
+
+## F11 – KI-Extraktion von Unternehmensdaten (Stufe 3, Idee)
+
+**Status:** Idee, nicht beauftragt · **Abhängig von:** F10
+
+* Text von Startseite + Impressum an die Claude-API, strukturierte Antwort (Name,
+  Rechtsform, Adresse, Branche, Kurzbeschreibung). Robuster als Muster bei ungewöhnlichen
+  Seiten; Bruchteile eines Cents pro Abruf, API-Key nur auf dem Server.
 
 ---
 
@@ -361,6 +417,7 @@ Muster), `pocketbase/pb_hooks/company-lookup.pb.js` + `company-lookup-lib.js` (S
   Platzhalter).
 * **F7** kann parallel zu F2 und F3 laufen, aber **nach F1** (beide ändern
   `KanbanBoard.svelte`).
+* **F9** ist unabhängig und jederzeit startbar; **F10 erst nach F9** (gleiche Dialoge).
 * **Danach:** Integration F2 + F3 + F7 (Platzhalter durch `ActivityTimeline` und
   `TodoList` ersetzen, „To-Do aus Notiz"), dann F4.
 * Nach jedem Feature: zentrale Doku-Zusammenführung (CLAUDE.md-Struktur, Pitfalls).
