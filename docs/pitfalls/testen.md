@@ -48,6 +48,11 @@ Muss **genau einen** Namen ausgeben. Heilmittel ist ein erneutes `npm run build`
   `scripts/agent-env.sh <n>` (n = 1..9): kopiert das PocketBase-Binary, legt eine eigene
   `pb_data` an, vergibt PocketBase `810<n>` und Vite `518<n>` und druckt die Startbefehle.
   Vite bekommt das Proxy-Ziel über `PB_URL`, das Seed-Skript ebenso.
+* **Ein Agent-Worktree kann von einem älteren Commit abzweigen als `main`.** Symptom:
+  `git worktree list` zeigt die Worktrees unter `.claude/worktrees/` auf einem früheren
+  Hash; im Worktree fehlen kurz zuvor committete Dateien (z. B. `scripts/agent-env.sh`).
+  Nach dem Start prüfen und im Worktree `git merge --ff-only main` ausführen, bevor der
+  Agent loslegt.
 * **Seed-Dateien:** jede Datei in `scripts/seed/` exportiert
   `default async ({ api, token, DEV_USER, DEV_SUPERUSER }) => {}`, läuft in Namensreihenfolge
   (`10-crm.mjs` zuerst) und muss idempotent sein (überspringen, wenn ihre Daten schon da

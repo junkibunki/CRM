@@ -13,3 +13,6 @@ pocketbase/pb-agent.log
 web/vite-agent.log
 # throwaway databases of npm run test:api
 pocketbase/pb_test_*/
+
+# agent worktrees (Agent tool isolation: worktree)
+.claude/worktrees/
