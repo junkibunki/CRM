@@ -11,6 +11,7 @@
 	import { errorMessage, pb } from '#lib/pb.js';
 	import { LastActivityStore } from '#lib/last-activity/last.svelte.js';
 	import { PipelineTodoStore } from '#lib/todos/pipeline.svelte.js';
+	import { GateStore } from '#lib/gates/gates.svelte.js';
 	import type { Board } from '#lib/types.js';
 
 	// cards show company, contact and owner names, the lead dialog picks from them
@@ -21,6 +22,7 @@
 	let store = $state<BoardStore | null>(null);
 	let todos = $state<PipelineTodoStore | null>(null);
 	let activity = $state<LastActivityStore | null>(null);
+	let gates = $state<GateStore | null>(null);
 	let error = $state('');
 	let settingsOpen = $state(false);
 	let attempt = $state(0); // bumped by "Erneut versuchen"
@@ -42,11 +44,14 @@
 					const t = new PipelineTodoStore(board.id);
 					// latest activity per lead, also one query (F4)
 					const a = new LastActivityStore(board.id);
+					// stage requirements + the checks of all its leads, one query each (F12)
+					const g = GateStore.forBoard(board.id);
 					store = s;
 					todos = t;
 					activity = a;
+					gates = g;
 					error = '';
-					const stops = [s.sync(), t.sync(), a.sync()];
+					const stops = [s.sync(), t.sync(), a.sync(), g.sync()];
 					teardown = () => stops.forEach((stop) => stop());
 				},
 				onError: (err) => (error = errorMessage(err))
@@ -63,6 +68,7 @@
 		store = null;
 		todos = null;
 		activity = null;
+		gates = null;
 		attempt++;
 	}
 </script>
@@ -84,14 +90,18 @@
 		{/if}
 	</div>
 
-	{#if error || store?.error || todos?.error || activity?.error}
+	{#if error || store?.error || todos?.error || activity?.error || gates?.error}
 		<div
 			class="mx-4 mt-2 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
 		>
 			<span class="flex-1">
 				{error ||
 					store?.error ||
-					(todos?.error ? `To-Dos: ${todos.error}` : `Letzte Aktivitäten: ${activity?.error}`)}
+					(todos?.error
+						? `To-Dos: ${todos.error}`
+						: activity?.error
+							? `Letzte Aktivitäten: ${activity.error}`
+							: gates?.error)}
 			</span>
 			<Button
 				variant="ghost"
@@ -102,6 +112,7 @@
 					store?.clearError();
 					todos?.clearError();
 					if (activity) activity.error = '';
+					gates?.clearError();
 				}}
 			>
 				<XIcon />
@@ -118,7 +129,12 @@
 		<p class="p-4 text-sm text-muted-foreground">Lädt …</p>
 	{:else if store.board}
 		<div class="min-h-0 flex-1">
-			<KanbanBoard {store} todos={todos ?? undefined} activity={activity ?? undefined} />
+			<KanbanBoard
+				{store}
+				todos={todos ?? undefined}
+				activity={activity ?? undefined}
+				gates={gates ?? undefined}
+			/>
 		</div>
 	{/if}
 </div>

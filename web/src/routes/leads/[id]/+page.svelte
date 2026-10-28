@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { goto } from '$app/navigation';
 	import { companies, contacts, users } from '#lib/collection.svelte.js';
@@ -12,8 +11,11 @@
 	import CompanyTile from '#lib/lead/CompanyTile.svelte';
 	import ContactsTile from '#lib/lead/ContactsTile.svelte';
 	import LeadHeader from '#lib/lead/LeadHeader.svelte';
-	import PlaceholderTile from '#lib/lead/PlaceholderTile.svelte';
 	import ActivityTimeline from '#lib/activities/ActivityTimeline.svelte';
+	import GateDialog from '#lib/gates/GateDialog.svelte';
+	import { GateStore } from '#lib/gates/gates.svelte.js';
+	import GatesTile from '#lib/gates/GatesTile.svelte';
+	import { GatePrompt, gateMove } from '#lib/gates/prompt.svelte.js';
 	import { LeadStore } from '#lib/lead/lead.svelte.js';
 	import TodoList from '#lib/todos/TodoList.svelte';
 	import type { Company, Contact } from '#lib/types.js';
@@ -27,16 +29,37 @@
 	$effect(() => users.use());
 
 	let store = $state<LeadStore | null>(null);
+	// F12: requirements of the pipeline, this lead's checks and their log
+	let gates = $state<GateStore | null>(null);
+	const prompt = new GatePrompt();
 
 	// one store per lead id (the page component is reused when the id in the URL changes)
 	$effect(() => {
 		const id = params.id;
 		return untrack(() => {
 			const s = new LeadStore(id);
+			const g = GateStore.forLead(id);
 			store = s;
-			return s.sync();
+			gates = g;
+			const stops = [s.sync(), g.sync()];
+			return () => stops.forEach((stop) => stop());
 		});
 	});
+
+	// a stage picked in the header: through the gate (dialog first if requirements are open)
+	function pickStage(columnId: string) {
+		const s = store;
+		const target = s?.stages.find((c) => c.id === columnId);
+		if (!s?.lead || !target) return s?.moveToStage(columnId);
+		gateMove({
+			gates: gates ?? undefined,
+			prompt,
+			lead: s.lead,
+			target,
+			columns: s.stages,
+			move: () => s.moveToStage(columnId)
+		});
+	}
 
 	// deleted here (header or dialog): back to the pipeline
 	$effect(() => {
@@ -95,6 +118,7 @@
 				{lead}
 				onedit={() => (editOpen = true)}
 				ondelete={() => (confirmOpen = true)}
+				onstage={pickStage}
 			/>
 
 			<div class="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -105,8 +129,9 @@
 					<ContactsTile {lead} onopen={openContact} />
 					<CompanyTile companyId={lead.company} onopen={openCompany} />
 					<TodoList leadId={lead.id} />
-					<!-- F12: requirements of the current stage -->
-					<PlaceholderTile icon={ShieldCheckIcon} title="Bedingungen" text="Bedingungen der Phase folgen." />
+					{#if gates}
+						<GatesTile {gates} {lead} stages={store.stages} {prompt} />
+					{/if}
 				</aside>
 			</div>
 		{:else}
@@ -135,5 +160,6 @@
 	/>
 {/if}
 
+<GateDialog {prompt} />
 <ContactDialog contact={contact} bind:open={contactOpen} />
 <CompanyDialog company={company} bind:open={companyOpen} />

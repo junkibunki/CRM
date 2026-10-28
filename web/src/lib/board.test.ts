@@ -407,3 +407,69 @@ describe('BoardStore: re-ranking with a failed update', () => {
 		stop();
 	});
 });
+
+describe('BoardStore: stage gates (F12)', () => {
+	const data = { title: 'Gate', company: 'co', contacts: ['ct'], expected_close: '', owner: 'u1' };
+	type Send = (path: string, opts: { method: string; body: Record<string, unknown> }) => Promise<unknown>;
+	const pbSend = mock.pb as unknown as { send?: Send };
+	const msg = 'Bevor der Lead nach „Angebot“ kann, muss diese Bedingung erfüllt sein: „X“.';
+
+	afterEach(() => delete pbSend.send);
+
+	it('creates a lead with confirmations through POST /api/crm/leads (one transaction)', async () => {
+		const sent: { path: string; method: string; body: Record<string, unknown> }[] = [];
+		pbSend.send = async (path, opts) => {
+			sent.push({ path, ...opts });
+			return { lead: lead('new', 'c2', String(opts.body.rank)), checks: [] };
+		};
+		const checks = [{ requirement: 'r1', value: 'true' }];
+		expect(await store.addLead('c2', data, checks)).toBe(true);
+		expect(sent).toHaveLength(1);
+		expect(sent[0].path).toBe('/api/crm/leads');
+		expect(sent[0].method).toBe('POST');
+		expect(sent[0].body).toMatchObject({ ...data, column: 'c2', checks });
+		expect(typeof sent[0].body.rank).toBe('string');
+		expect(mock.calls.some((c) => c.collection === 'leads' && c.method === 'create')).toBe(false);
+		expect(titles('c2')).toEqual(['l4', 'new']);
+		// the realtime create of the same lead is deduped
+		mock.emit('leads', 'create', lead('new', 'c2', String(sent[0].body.rank)));
+		expect(titles('c2')).toEqual(['l4', 'new']);
+		stop();
+	});
+
+	it('without confirmations it uses the normal create', async () => {
+		pbSend.send = async () => {
+			throw new Error('route must not be used');
+		};
+		expect(await store.addLead('c1', data)).toBe(true);
+		expect(mock.calls.some((c) => c.collection === 'leads' && c.method === 'create')).toBe(true);
+		stop();
+	});
+
+	it('a refused create shows the server sentence and resolves false (dialog stays open)', async () => {
+		pbSend.send = async () => {
+			throw apiError(400, msg, { column: { code: 'gate_open', message: msg } });
+		};
+		expect(await store.addLead('c2', data, [])).toBe(false);
+		expect(store.error).toBe(msg);
+		expect(titles('c2')).toEqual(['l4']);
+		stop();
+	});
+
+	it('a move refused by the gate rolls back and shows the sentence without the field name', async () => {
+		mock.fail('update', apiError(400, 'x', { column: { code: 'gate_open', message: msg } }), 'leads');
+		await store.moveLead('l1', 'c2', 0);
+		expect(titles('c1')).toEqual(['l1', 'l2', 'l3']);
+		expect(store.error).toBe(msg);
+		stop();
+	});
+
+	it('addColumn resolves the new stage (its requirements are created next), null on failure', async () => {
+		const rec = await store.addColumn({ name: 'Neu2', color: 'gray', wip_limit: 0, closed: false });
+		expect(rec?.name).toBe('Neu2');
+		expect(store.columns.map((c) => c.id)).toContain(rec!.id);
+		mock.fail('create', apiError(500, 'x'), 'board_columns');
+		expect(await store.addColumn({ name: 'y', color: 'gray', wip_limit: 0, closed: false })).toBeNull();
+		stop();
+	});
+});

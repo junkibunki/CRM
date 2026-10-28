@@ -3,6 +3,7 @@ import { auth } from '../auth.svelte';
 import type { BoardStore } from '../board.svelte';
 import { applyDelta, listDelta, same } from '../diff';
 import { liveSync } from '../live';
+import { gateFailure } from '../gates/prompt.svelte';
 import { errorMessage, pb } from '../pb';
 import { byRank, freshRanks, insertSorted, rankBetween } from '../rank';
 import type { BoardColumn, Lead, LeadData } from '../types';
@@ -217,7 +218,8 @@ export class LeadStore implements LeadWriter {
 			}
 			// roll back only if nobody else has moved it in the meantime
 			if (lead.column === columnId && lead.rank === rank) Object.assign(lead, prev);
-			this.error = errorMessage(err);
+			// refused by a stage gate (F12): the server's sentence without the field name
+			this.error = gateFailure(err);
 		}
 	}
 

@@ -13,8 +13,15 @@
 	import { formatDateTime, formatDay } from './format';
 	import type { LeadStore } from './lead.svelte';
 
-	type Props = { store: LeadStore; lead: Lead; onedit: () => void; ondelete: () => void };
-	let { store, lead, onedit, ondelete }: Props = $props();
+	type Props = {
+		store: LeadStore;
+		lead: Lead;
+		onedit: () => void;
+		ondelete: () => void;
+		/** a stage was picked; default: move right away (the page puts the stage gate in between, F12) */
+		onstage?: (columnId: string) => void;
+	};
+	let { store, lead, onedit, ondelete, onstage = (id) => store.moveToStage(id) }: Props = $props();
 
 	const stage = $derived(store.stage);
 	const close = $derived(formatDay(lead.expected_close));
@@ -50,7 +57,7 @@
 				     store, and re-picking the current item (bits-ui deselect to '') does nothing -->
 				<Select.Root
 					type="single"
-					bind:value={() => lead.column, (v) => store.moveToStage(v)}
+					bind:value={() => lead.column, (v) => v && v !== lead.column && onstage(v)}
 				>
 					<Select.Trigger class="min-w-40" aria-label="Phase">
 						<span class="flex items-center gap-2">
