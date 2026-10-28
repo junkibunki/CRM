@@ -8,6 +8,7 @@ vi.mock('./pb', async (orig) => {
 });
 
 import * as pbModule from './pb';
+import { auth } from './auth.svelte';
 import { liveSync } from './live';
 
 const mock = (pbModule as unknown as { __mock: PbMock }).__mock;
@@ -15,6 +16,7 @@ const mock = (pbModule as unknown as { __mock: PbMock }).__mock;
 let cleanup: (() => void)[] = [];
 
 beforeEach(() => {
+	auth.logout(); // forget the last session check (a first load may reuse it)
 	mock.reset();
 	mock.set('items', [{ id: 'x', v: 1 }]);
 });
@@ -114,6 +116,30 @@ describe('liveSync', () => {
 		expect(s.applied).toHaveLength(0);
 		expect(mock.calls.filter((c) => c.method === 'getFullList')).toHaveLength(0);
 		expect(mock.pb.authStore.token).toBe(''); // logged out
+		s.stop();
+	});
+
+	it('reuses a session check from moments ago for a first load (no extra round-trip)', async () => {
+		const refreshes = () => mock.calls.filter((c) => c.method === 'authRefresh').length;
+		const a = setup(); // e.g. the board lookup of the leads page
+		await flush();
+		expect(refreshes()).toBe(1);
+		const b = setup(); // then the board itself, started after the lookup
+		await flush();
+		expect(b.applied).toHaveLength(1);
+		expect(refreshes()).toBe(1);
+		a.stop();
+		b.stop();
+	});
+
+	it('still checks the session before a reload after a reconnect', async () => {
+		const s = setup();
+		await flush();
+		mock.invalidateSession();
+		mock.reconnect();
+		await flush();
+		expect(s.applied).toHaveLength(1); // no reload with the invalid session
+		expect(mock.pb.authStore.token).toBe('');
 		s.stop();
 	});
 

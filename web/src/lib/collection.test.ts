@@ -8,7 +8,7 @@ vi.mock('./pb', async (orig) => {
 });
 
 import * as pbModule from './pb';
-import { LiveCollection } from './collection.svelte';
+import { LiveCollection, userLabel, users } from './collection.svelte';
 
 const mock = (pbModule as unknown as { __mock: PbMock }).__mock;
 
@@ -95,6 +95,21 @@ describe('LiveCollection', () => {
 		hold();
 		await pending;
 		expect(things.get('1')).toBeUndefined();
+		release();
+	});
+
+	it('labels colleagues without a name (e-mail hidden) distinguishably, not as "Unbenannt"', async () => {
+		mock.set('users', [
+			{ id: 'abc123xyz000001', name: '', email: '', updated: stamp() },
+			{ id: 'def456xyz000002', name: '', email: '', updated: stamp() },
+			{ id: 'named0000000003', name: 'Erika', email: '', updated: stamp() }
+		]);
+		const release = users.use();
+		await flush();
+		expect(userLabel('abc123xyz000001')).toBe('Ohne Namen (abc123)');
+		expect(userLabel('def456xyz000002')).toBe('Ohne Namen (def456)');
+		expect(userLabel('named0000000003')).toBe('Erika');
+		expect(userLabel('unknown')).toBe('');
 		release();
 	});
 

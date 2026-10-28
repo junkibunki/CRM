@@ -110,9 +110,10 @@
 		const data = toData();
 		if (lead) {
 			open = false;
-			// only what was changed here, so concurrent edits of other fields survive
+			// only what was changed here, so concurrent edits of other fields survive; contacts
+			// go as the difference to `initial`, so a contact someone else added stays
 			const changed = initial ? changedFields(initial, data) : data;
-			if (Object.keys(changed).length) store.updateLead(lead.id, changed); // optimistic
+			if (Object.keys(changed).length) store.updateLead(lead.id, changed, initial ?? undefined); // optimistic
 			return;
 		}
 		if (!column) return;

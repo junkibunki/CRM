@@ -9,6 +9,7 @@ vi.mock('./pb', async (orig) => {
 
 import * as pbModule from './pb';
 import { BoardStore } from './board.svelte';
+import { byRank } from './rank';
 
 const mock = (pbModule as unknown as { __mock: PbMock }).__mock;
 
@@ -170,6 +171,239 @@ describe('BoardStore: messages instead of silent failures', () => {
 		mock.emit('leads', 'delete', lead('l1', 'c1', 'a0'));
 		await store.updateLead('l1', { title: 'zu spät' });
 		expect(store.error).toMatch(/gelöscht/);
+		stop();
+	});
+
+	it('reports edits to a stage deleted meanwhile (already gone locally)', async () => {
+		mock.emit('board_columns', 'delete', { id: 'c2', board: 'b1', name: 'Angebot', rank: 'a1' });
+		await store.updateColumn('c2', { name: 'zu spät' });
+		expect(store.error).toMatch(/Phase.*gelöscht/);
+		stop();
+	});
+
+	it('reports edits to a stage deleted meanwhile (404 from the server)', async () => {
+		mock.fail('update', apiError(404, 'gone'), 'board_columns');
+		await store.updateColumn('c2', { name: 'zu spät' });
+		expect(store.columns.map((c) => c.id)).toEqual(['c1']);
+		expect(store.error).toMatch(/Phase.*gelöscht/);
+		stop();
+	});
+});
+
+describe('BoardStore: rollback keeps newer changes of others', () => {
+	it('restores the previous value of a lead field when saving fails', async () => {
+		mock.fail('update', apiError(500, 'boom'), 'leads');
+		await store.updateLead('l1', { title: 'Meins' });
+		expect(store.leads.c1![0].title).toBe('l1');
+		expect(store.error).not.toBe('');
+		stop();
+	});
+
+	it('keeps a lead field someone else changed while our save was failing', async () => {
+		const release = mock.hold('leads', 'update');
+		mock.fail('update', apiError(500, 'boom'), 'leads');
+		const pending = store.updateLead('l1', { title: 'Meins', expected_close: '2027-01-01' });
+		await flush();
+		mock.emit('leads', 'update', lead('l1', 'c1', 'a0', { title: 'Von B' }));
+		release();
+		await pending;
+		const l1 = store.leads.c1![0];
+		expect(l1.title).toBe('Von B'); // newer value of B, not our old one
+		expect(l1.expected_close).toBe(''); // the value from B's record (= the old one), not ours
+		stop();
+	});
+
+	it('keeps a stage field someone else changed while our save was failing', async () => {
+		const release = mock.hold('board_columns', 'update');
+		mock.fail('update', apiError(500, 'boom'), 'board_columns');
+		const pending = store.updateColumn('c1', { name: 'Meins', wip_limit: 3 });
+		await flush();
+		mock.emit('board_columns', 'update', { id: 'c1', board: 'b1', name: 'Von B', rank: 'a0', wip_limit: 0 });
+		release();
+		await pending;
+		const c1 = store.columns.find((c) => c.id === 'c1')!;
+		expect(c1.name).toBe('Von B');
+		expect(c1.wip_limit).toBe(0);
+		stop();
+	});
+});
+
+describe('BoardStore: pipeline rollback', () => {
+	it('keeps a pipeline name someone else saved while our save was failing', async () => {
+		const release = mock.hold('boards', 'update');
+		mock.fail('update', apiError(500, 'boom'), 'boards');
+		const pending = store.updateBoard({ name: 'Meins', card_fields: ['owner'] });
+		await flush();
+		mock.emit('boards', 'update', { id: 'b1', name: 'Von B', card_fields: ['company'] });
+		release();
+		await pending;
+		expect(store.board!.name).toBe('Von B');
+		expect(store.board!.card_fields).toEqual(['company']);
+		stop();
+	});
+});
+
+describe('BoardStore: contacts are saved as a difference', () => {
+	const body = () => updates().at(-1)!.args[1] as Record<string, unknown>;
+
+	it('sends added contacts as contacts+ and keeps one someone else added meanwhile', async () => {
+		// B added "b" while our dialog (opened with ['ct']) was open
+		mock.emit('leads', 'update', lead('l1', 'c1', 'a0', { contacts: ['ct', 'b'] }));
+		await store.updateLead('l1', { contacts: ['ct', 'mine'] }, { contacts: ['ct'] });
+		expect(body()).toEqual({ 'contacts+': ['mine'] });
+		expect(store.leads.c1![0].contacts).toEqual(['ct', 'b', 'mine']);
+		stop();
+	});
+
+	it('sends removed contacts as contacts- together with other fields', async () => {
+		mock.emit('leads', 'update', lead('l1', 'c1', 'a0', { contacts: ['ct', 'x', 'b'] }));
+		await store.updateLead('l1', { title: 'T', contacts: ['ct'] }, { title: 'l1', contacts: ['ct', 'x'] });
+		expect(body()).toEqual({ title: 'T', 'contacts-': ['x'] });
+		expect(store.leads.c1![0].contacts).toEqual(['ct', 'b']);
+		stop();
+	});
+
+	it('saves nothing when only the order of the contacts differs', async () => {
+		await store.updateLead('l1', { contacts: ['b', 'ct'] }, { contacts: ['ct', 'b'] });
+		expect(updates()).toHaveLength(0);
+		stop();
+	});
+
+	it('still sends the whole list without a starting state', async () => {
+		await store.updateLead('l1', { contacts: ['ct', 'mine'] });
+		expect(body()).toEqual({ contacts: ['ct', 'mine'] });
+		stop();
+	});
+
+	it('rolls the contacts back when saving fails', async () => {
+		mock.fail('update', apiError(500, 'boom'), 'leads');
+		await store.updateLead('l1', { contacts: ['ct', 'mine'] }, { contacts: ['ct'] });
+		expect(store.leads.c1![0].contacts).toEqual(['ct']);
+		stop();
+	});
+});
+
+describe('BoardStore: invalid session on create', () => {
+	const data = { title: 'x', company: 'co', contacts: ['ct'], expected_close: '', owner: 'u1' };
+
+	it('checks the session when creating a lead fails with 400 (guest answer)', async () => {
+		mock.fail('create', apiError(400, 'Failed to create record.'), 'leads');
+		mock.invalidateSession();
+		expect(await store.addLead('c1', data)).toBe(false);
+		expect(mock.pb.authStore.token).toBe(''); // logged out right away
+		stop();
+	});
+
+	it('checks the session when creating a stage fails with 400 (guest answer)', async () => {
+		mock.fail('create', apiError(400, 'Failed to create record.'), 'board_columns');
+		mock.invalidateSession();
+		await store.addColumn({ name: 'x', color: '', wip_limit: 0 });
+		expect(mock.pb.authStore.token).toBe('');
+		stop();
+	});
+
+	it('keeps a valid session on a plain validation error', async () => {
+		mock.fail('create', apiError(400, 'Failed to create record.'), 'leads');
+		expect(await store.addLead('c1', data)).toBe(false);
+		expect(mock.pb.authStore.token).toBe('test-token');
+		expect(store.error).not.toBe('');
+		stop();
+	});
+});
+
+describe('BoardStore: re-ranking with a failed update', () => {
+	it('keeps local ranks equal to the server when one of the re-rank updates fails', async () => {
+		mock.set('leads', [lead('x1', 'c2', 'b0'), lead('x2', 'c2', 'b0'), lead('x3', 'c2', 'b0'), lead('m', 'c1', 'a5')]);
+		mock.reconnect();
+		await flush();
+		mock.fail('update', apiError(500, 'boom'), 'leads'); // the first re-rank update (x1)
+		await store.moveLead('m', 'c2', 1);
+		expect(store.error).not.toBe('');
+		expect(titles('c1')).toEqual(['m']); // the move itself did not happen
+		const server = new Map(mock.db.leads!.map((l) => [l.id, l.rank]));
+		for (const l of store.leads.c2!) expect(l.rank).toBe(server.get(l.id));
+		const ranks = store.leads.c2!.map((l) => l.rank);
+		expect([...ranks].sort()).toEqual(ranks); // still in rank order
+		stop();
+	});
+
+	// order the server returns for `sort=rank,id`
+	const serverOrder = (collection: string, keep: (r: { [k: string]: unknown }) => boolean) =>
+		(mock.db[collection] ?? [])
+			.filter(keep)
+			.map((r) => r as unknown as { id: string; rank: string })
+			.sort(byRank)
+			.map((r) => r.id);
+
+	async function restart(columns: object[], leads: object[]) {
+		stop();
+		mock.set('board_columns', columns as { id: string }[]);
+		mock.set('leads', leads as { id: string }[]);
+		store = new BoardStore('b1');
+		stop = store.sync();
+		await flush();
+		mock.calls.length = 0;
+	}
+
+	it('stages: local order equals the server order after a partly failed re-rank', async () => {
+		const col = (id: string, rank: string) => ({ id, board: 'b1', name: id, rank, updated: stamp() });
+		await restart([col('cA', 'a0'), col('cB', 'a0'), col('cC', 'a0'), col('cD', 'a1')], []);
+		mock.fail('update', apiError(500, 'boom'), 'board_columns'); // re-rank of A fails
+		await store.moveColumn('cD', 1); // between A and B (equal ranks)
+		expect(store.error).not.toBe('');
+		const server = new Map(mock.db.board_columns!.map((c) => [c.id, c.rank]));
+		for (const c of store.columns) expect(c.rank).toBe(server.get(c.id));
+		expect(store.columns.map((c) => c.id)).toEqual(serverOrder('board_columns', () => true));
+		expect(store.columns.map((c) => c.id)).toEqual(['cA', 'cB', 'cD', 'cC']);
+		stop();
+	});
+
+	it('lead moved within its stage: local order equals the server order after a partly failed re-rank', async () => {
+		await restart(
+			[{ id: 'c1', board: 'b1', name: 'Neu', rank: 'a0', updated: stamp() }],
+			[lead('x1', 'c1', 'a0'), lead('x2', 'c1', 'a0'), lead('x3', 'c1', 'a0'), lead('xm', 'c1', 'a1')]
+		);
+		mock.fail('update', apiError(500, 'boom'), 'leads'); // re-rank of x1 fails
+		await store.moveLead('xm', 'c1', 1);
+		expect(store.error).not.toBe('');
+		const server = new Map(mock.db.leads!.map((l) => [l.id, l.rank]));
+		for (const l of store.leads.c1!) expect(l.rank).toBe(server.get(l.id));
+		expect(titles('c1')).toEqual(serverOrder('leads', (l) => l.column === 'c1'));
+		expect(titles('c1')).toEqual(['x1', 'x2', 'xm', 'x3']);
+		stop();
+	});
+
+	it('matches re-rank results to the right items when realtime inserts into the live list meanwhile', async () => {
+		await restart(
+			[{ id: 'c1', board: 'b1', name: 'Neu', rank: 'a0', updated: stamp() }],
+			[lead('x1', 'c1', 'b0'), lead('x2', 'c1', 'b0')]
+		);
+		const release = mock.hold('leads', 'update'); // x1's re-rank update waits
+		mock.fail('update', apiError(500, 'boom'), 'leads'); // x2's fails
+		// called with the live list, as addLead/addColumn do; position 1 collides
+		const rankAt = (store as unknown as { rankAt: (l: unknown[], i: number, c: string) => Promise<string> })
+			.rankAt.bind(store);
+		const pending = rankAt(store.leads.c1!, 1, 'leads').catch(() => 'failed');
+		await flush();
+		const n0 = lead('n0', 'c1', 'a0');
+		mock.db.leads!.push(n0);
+		mock.emit('leads', 'create', n0); // lands at index 0 of the live list
+		release();
+		expect(await pending).toBe('failed');
+		const server = new Map(mock.db.leads!.map((l) => [l.id, l.rank]));
+		for (const l of store.leads.c1!) expect(l.rank).toBe(server.get(l.id));
+		expect(titles('c1')).toEqual(serverOrder('leads', (l) => l.column === 'c1'));
+		stop();
+	});
+
+	it('checks the session when a re-rank update fails with a guest answer', async () => {
+		mock.set('leads', [lead('x1', 'c2', 'b0'), lead('x2', 'c2', 'b0'), lead('m', 'c1', 'a5')]);
+		mock.reconnect();
+		await flush();
+		mock.fail('update', apiError(404, 'guest'), 'leads');
+		mock.invalidateSession();
+		await store.moveLead('m', 'c2', 1);
+		expect(mock.pb.authStore.token).toBe(''); // logged out
 		stop();
 	});
 });
