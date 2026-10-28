@@ -1,2 +1,6 @@
-<h1>Übersicht</h1>
-<p>Datenmodell folgt.</p>
+<script lang="ts">
+	import { goto } from '$app/navigation';
+
+	// Leads (the pipeline) is the start page
+	goto('/leads', { replace: true });
+</script>

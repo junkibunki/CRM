@@ -71,26 +71,49 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 | [migrationen.md](docs/pitfalls/migrationen.md) | eine Migration in `pocketbase/pb_migrations/` anlegst oder änderst |
 | [pocketbase-hooks.md](docs/pitfalls/pocketbase-hooks.md) | etwas in `pocketbase/pb_hooks/` schreibst (Request-Hook, Route, Cron) |
 | [testen.md](docs/pitfalls/testen.md) | die App lokal startest oder im Browser verifizierst |
+| [designsystem.md](docs/pitfalls/designsystem.md) | an UI-Komponenten, `app.css`, `components.json` oder Layout arbeitest |
+| [datenmodell.md](docs/pitfalls/datenmodell.md) | eine Collection, Relation oder Lösch-Logik änderst oder eine Seite mit Live-Daten baust |
+| [kanban.md](docs/pitfalls/kanban.md) | an der Leads-Pipeline, Drag & Drop, `rank` oder `liveSync()` arbeitest |
 
 ## Struktur
 
 ```
 /
 ├── web/                           # SvelteKit 3, Svelte 5 Runes, TypeScript, SPA
-│   ├── vite.config.ts             # adapter-static (Output -> ../pocketbase/pb_public,
-│   │                              # Fallback index.html) + Dev-Proxy /api + /_ -> :8090
+│   ├── vite.config.ts             # Tailwind-Plugin, adapter-static (Output ->
+│   │                              # ../pocketbase/pb_public, Fallback index.html),
+│   │                              # Dev-Proxy /api + /_/ -> :8090
+│   ├── components.json            # shadcn-svelte-Config (vega, neutral, #lib-Aliase)
 │   └── src/
+│       ├── app.css                # Tailwind-Entry: Design-Tokens hell/dunkel
 │       ├── lib/
-│       │   ├── pb.ts              # PB-Client (same origin)
-│       │   └── auth.svelte.ts     # authStore-Spiegel, login/logout
+│       │   ├── pb.ts              # PB-Client (same origin), 401 -> abmelden, Fehlertexte
+│       │   ├── auth.svelte.ts     # authStore-Spiegel, login/logout, refresh() prüft Session
+│       │   │                      # (bei Reconnect + Tab-Fokus; abgelaufen = Gast, kein 401)
+│       │   ├── types.ts           # Record-Typen (Company, Contact, Lead, …), Farben,
+│       │   │                      # Kartenfelder, Datums-Helfer, DnD-Daten
+│       │   ├── live.ts            # liveSync(): Abo + Laden ohne Lücke, Reconnect-Reload
+│       │   ├── collection.svelte.ts # LiveCollection: companies, contacts, users komplett live
+│       │   ├── diff.ts            # changedFields(): Dialoge speichern nur Geändertes
+│       │   ├── rank.ts            # fractional-indexing: byRank, rankBetween, insertSorted
+│       │   ├── board.svelte.ts    # BoardStore: Pipeline laden, Realtime, optimistische Moves
+│       │   ├── kanban/            # KanbanBoard (DnD-Monitor), KanbanColumn, KanbanCard,
+│       │   │                      # LeadDialog, ColumnDialog, BoardSettingsDialog
+│       │   ├── crm/               # CompanyDialog, ContactDialog
+│       │   ├── components/        # ConfirmDialog, PageHeader (Titel + Suche + Aktionen)
+│       │   ├── components/ui/     # shadcn-svelte, CLI-Output (nicht händisch pflegen)
+│       │   └── utils.ts           # cn() = clsx + tailwind-merge
 │       └── routes/                # +layout.ts (ssr=false), +layout.svelte (Guard +
-│                                  # Rahmen), +page.svelte (Übersicht), login/
+│                                  # Navigation), +page.svelte (-> /leads),
+│                                  # leads/ (Pipeline), kontakte/, unternehmen/, login/
 ├── pocketbase/
 │   ├── pocketbase(.exe)           # gitignored, gepinnt in scripts/get-pocketbase.sh
 │   ├── pb_migrations/             # JS-Migrationen, laufen beim Start automatisch
 │   ├── pb_data/                   # gitignored, die SQLite-DB
 │   └── pb_public/                 # gitignored, Build-Output
-└── scripts/get-pocketbase.sh      # lädt das gepinnte PocketBase-Binary
+├── scripts/get-pocketbase.sh      # lädt das gepinnte PocketBase-Binary (+ Prüfsumme)
+└── scripts/seed-dev.mjs           # nur lokal: Superuser, Dev-User, Demo-Unternehmen,
+                                   # -Kontakte und -Leads
 ```
 
 Ein Prozess serviert alles: PocketBase liefert `pb_public/` inkl. SPA-Fallback auf
@@ -133,6 +156,14 @@ Ein Prozess serviert alles: PocketBase liefert `pb_public/` inkl. SPA-Fallback a
   Subscription feuert ein `create`-Event für denselben Record — ohne `findIndex`-Check
   steht der Eintrag doppelt in der Liste.
 * **`pb.authStore.record`**, nicht `.model` (seit SDK 0.22).
+* **Ein abgelaufenes Token ergibt kein 401, sondern Gast-Antworten.** Symptom: Listen
+  kommen leer zurück (200), `getOne` liefert 404, Realtime schweigt — die Seite sieht
+  „leer" aus statt abgemeldet. Nur `authRefresh` antwortet mit 401. Typischer Auslöser:
+  der Admin ändert das Passwort eines Mitarbeiters. Deshalb prüft `auth.refresh()` die
+  Session vor jedem `liveSync`-Laden (auch dem ersten), nach fehlgeschlagenen Schreibzugriffen
+  (`LiveCollection.guard` bei 400/403/404; im Board nur bei 404 über `isGone`, sonst greift
+  die minütliche Prüfung), beim Tab-Fokus und minütlich. Neue
+  Live-Daten immer über `liveSync()` / `LiveCollection` laden, dann ist das abgedeckt.
 * **`expand` kommt leer zurück, wenn die View-Rule der Zielcollection zumacht.** Symptom:
   `record.expand` ist `{}`, kein Fehler, kein Log. Ursache bei `users`: die Standard-Rule
   `id = @request.auth.id` lässt nur den eigenen Datensatz durch. Siehe

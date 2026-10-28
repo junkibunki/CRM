@@ -18,6 +18,31 @@ Muss **genau einen** Namen ausgeben. Heilmittel ist ein erneutes `npm run build`
 
 ## Server starten
 
+* **Testdaten und Logins kommen aus `scripts/seed-dev.mjs`** (Superuser, Dev-User,
+  Demo-Unternehmen, -Kontakte und -Leads; Zugangsdaten stehen im Skript). Bei laufendem PocketBase vom Repo-Root:
+  `node scripts/seed-dev.mjs`. Der Dev-Server startet über `.claude/launch.json` (`web`).
+* **`ERR_CONNECTION_REFUSED` auf `localhost:5173`, obwohl der Dev-Server „läuft".** Vite
+  bündelt nach dem Start erst die Abhängigkeiten vor und lauscht nur auf `[::1]`. Mit
+  `curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/` warten, bis 200 kommt.
+* **Der erste Klick nach dem Start verpufft.** Symptom: Link geklickt, URL bleibt,
+  Titel „Loading …". Vite hat neue Abhängigkeiten entdeckt und lädt die Seite komplett
+  neu. Nochmal klicken; kein App-Bug.
+* **`browser_drag` des Playwright-MCP läuft auf großen Seiten in ein 30s-Timeout**, obwohl
+  der Drop durchging (1000 Karten). Ergebnis im DOM prüfen statt dem Fehler zu glauben.
+* **`browser_drag` von einer Karte auf sich selbst ist ein Klick**, kein Drag (keine
+  Bewegung → der Dialog öffnet sich). Für „loslassen, wo man angefangen hat" per
+  `browser_run_code_unsafe` mit `page.mouse` wegziehen und zurück.
+* **Realtime-Reconnect lässt sich über den Vite-Dev-Server nicht testen.** Der Proxy hält
+  die SSE-Verbindung zum Browser offen, auch wenn PocketBase dahinter neu startet — der
+  Client merkt nichts. Gegen `:8090` (Produktions-Build) testen. Playwrights
+  `setOffline(true)` kappt eine bestehende SSE-Verbindung zu localhost ebenfalls nicht.
+* **Resource-Timing zählt nach ~250 Einträgen nicht mehr mit.** Im Dev-Server lädt die App
+  hunderte Module, danach landet kein API-Request mehr in
+  `performance.getEntriesByType('resource')`. Requests im Netzwerk-Log des Playwright-MCP
+  (`browser_network_requests`) zählen.
+* **Git Bash schreibt `/api/…`-Argumente in Windows-Pfade um** (`C:/Program Files/Git/api/…`).
+  Für Node-Skripte mit URL-Pfad als Argument `MSYS_NO_PATHCONV=1` voranstellen.
+
 * **Ein mit `(cmd &)` in den Hintergrund geschickter Server überlebt den Bash-Aufruf
   nicht.** Symptom: Minuten später schlagen alle Requests fehl. PocketBase für Tests über
   das `run_in_background` des Bash-Tools starten und mit `/api/health` prüfen, *bevor* man

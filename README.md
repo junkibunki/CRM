@@ -2,6 +2,12 @@
 
 Schlankes internes CRM. Backend: [PocketBase](https://pocketbase.io) (pinned 0.40.6), Frontend: SvelteKit / Svelte 5 als statische SPA.
 
+- **Leads** – Pipeline als Kanban-Board (Phasen konfigurierbar, Drag & Drop, live für alle).
+  Ein Lead hat Titel, Unternehmen, einen oder mehrere Kontakte, optional ein
+  voraussichtliches Abschlussdatum, einen zuständigen Mitarbeiter und das Erstellungsdatum.
+- **Kontakte** und **Unternehmen** – pflegen, suchen; Kontakte gehören optional zu einem
+  Unternehmen.
+
 ## Struktur
 
 - `pocketbase/` – PocketBase-Instanz; `pb_migrations/` ist versioniert (Schema), `pb_data/` nicht
@@ -26,6 +32,13 @@ Terminal 2 – Frontend unter http://localhost:5173 (leitet `/api` an PocketBase
 
 ```bash
 cd web && npm install && npm run dev
+```
+
+Optional, nur lokal: Superuser, Login-User und Demo-Daten (Unternehmen, Kontakte, Leads) anlegen (Zugangsdaten
+stehen im Skript; nie gegen Produktion laufen lassen):
+
+```bash
+node scripts/seed-dev.mjs
 ```
 
 Öffentliche Registrierung ist per Migration abgeschaltet; Benutzer legt ein Superuser im

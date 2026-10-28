@@ -4,3 +4,6 @@ pocketbase/pocketbase.exe
 pocketbase/pb_data/
 pocketbase/pb_public/
 pocketbase/*.zip
+
+# Playwright-MCP screenshots/snapshots
+.playwright-mcp/
