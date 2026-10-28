@@ -53,6 +53,13 @@ Muss **genau einen** Namen ausgeben. Heilmittel ist ein erneutes `npm run build`
   (`EPERM, Permission denied: …\Temp\…`). Die Wegwerf-Datenbank liegt deshalb unter
   `pocketbase/pb_test_*` (gitignored). Aufräumen erst **nach dem Prozessende** — direkt nach
   `kill()` hält PocketBase unter Windows die Dateien noch (`EPERM` aus `rmSync`).
+* **`import css from './x.css?raw'` ist in Vitest `''`** (CSS-Importe werden gestubbt), ein
+  Test dagegen ist wertlos. Datei per `readFileSync` lesen; `new URL('./x.css',
+  import.meta.url)` wirft unter jsdom „The URL must be of scheme file" →
+  `fileURLToPath(import.meta.url)` und den Dateinamen ersetzen.
+* **Komponententests:** `mount()` funktioniert in `*.svelte.test.ts`; ein `bind:`-Prop als
+  Getter/Setter auf eine `$state`-Variable übergeben. bits-ui-Dialoge rendern in jsdom (Inhalt
+  per Portal in `document.body`). Beispiel `kanban/LeadPreview.svelte.test.ts`.
 * **Ein API-Test, der Rules oder Schema ändert, schreibt eine Migration ins Repo**, wenn die
   Wegwerf-PocketBase mit Automigrate läuft (ihr `--migrationsDir` ist der des Repos). Solche
   Test-Server mit `--automigrate=false` starten (`scripts/test-api-gates.mjs`); danach

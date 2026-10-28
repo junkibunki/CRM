@@ -64,6 +64,10 @@ Server muss neu starten. Erst die Datei schreiben, *dann* `serve`.
 nächsten Start wieder hochlaufen lassen. `down` fragt interaktiv nach und braucht deshalb
 ein `echo "y" |` davor, sonst bricht es mit „The command has been cancelled" ab.
 
+**App-Einstellungen in einer Migration** (z. B. Batch-API): `const s = app.settings()`,
+`s.batch.enabled = true` usw., dann `app.save(s)`; Down setzt die PocketBase-Standardwerte
+zurück (`1793190007_f13b.js`).
+
 ## API-Rules
 
 **Eine Mehrfach-Relation über `@collection` braucht `.id`.** Symptom: die Rule speichert

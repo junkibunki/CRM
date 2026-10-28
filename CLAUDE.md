@@ -119,6 +119,7 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       │   ├── diff.ts            # changedFields(): Dialoge speichern nur Geändertes
 │       │   ├── rank.ts            # fractional-indexing: byRank, rankBetween, insertSorted
 │       │   ├── board.svelte.ts    # BoardStore: Pipeline laden, Realtime, optimistische Moves
+│       │   ├── optimistic.ts      # gemeinsam: isGone, rollback, RealtimeMarks, saveRanks (Batch)
 │       │   ├── kanban/            # KanbanBoard (DnD-Monitor), KanbanColumn, KanbanCard,
 │       │   │                      # LeadDialog, ColumnDialog, BoardSettingsDialog,
 │       │   │                      # LeadPreview (Schnellansicht), preview.ts + drop.ts (rein)
@@ -136,7 +137,8 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       │   ├── crm/               # CompanyDialog, ContactDialog, email-suggest.ts (Name und
 │       │   │                      # Unternehmen aus der E-Mail, rein), company-lookup.ts
 │       │   │                      # (Website-Daten über die Hook-Route)
-│       │   ├── components/        # ConfirmDialog, PageHeader (Titel + Suche + Aktionen)
+│       │   ├── components/        # ConfirmDialog, PageHeader (Titel + Suche + Aktionen),
+│       │   │                      # dialog/ (Wrapper: „Schließen" – Dialoge von hier importieren)
 │       │   ├── components/ui/     # shadcn-svelte, CLI-Output (nicht händisch pflegen)
 │       │   └── utils.ts           # cn() = clsx + tailwind-merge
 │       └── routes/                # +layout.ts (ssr=false), +layout.svelte (Guard +

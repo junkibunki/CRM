@@ -74,6 +74,13 @@ nachdem, ob ein Fehler den Dialog offen halten muss:
   verwerfen.
 Löschen fragt über `components/ConfirmDialog.svelte` nach (schließt vor `onconfirm`).
 
+**Dialoge aus `#lib/components/dialog/index.js` importieren**, nicht aus `components/ui/dialog`.
+Der Wrapper setzt den Screenreader-Text des Schließen-Buttons auf „Schließen" (der
+shadcn-Output sagt „Close" und wird nicht händisch gepflegt).
+
+**`goto` in SvelteKit 3 kennt kein `noScroll`/`keepFocus` mehr.** Für URL-Zustand (z. B.
+`/leads?lead=<id>` für die Schnellansicht) `goto(url, { replace: true, reset: false })`.
+
 **`content-visibility: auto` schneidet alles ab, was über das Element hinausragt.** Es
 bringt Paint-Containment mit. Auf dem Kartenrahmen in `KanbanCard.svelte` gesetzt, nicht
 auf dem Wrapper — dort lägen die Drop-Linien (`-top-[5px]`) außerhalb und wären unsichtbar.

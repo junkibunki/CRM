@@ -71,13 +71,17 @@ laufen darüber. Selbst nachbauen heißt, diese Fehler erneut zu machen:
   `column = X && id != self`). Ein Realtime-Delete auf dem Record-Topic kommt an.
 * **Rollback nur eigener Felder:** schlägt ein optimistisches Update fehl, werden nur Felder
   zurückgesetzt, die noch unseren Wert haben (`rollback()` mit `same()`), für Lead, Phase
-  und Pipeline. Speichert jemand gleichzeitig *denselben* Wert, ist das nicht
-  unterscheidbar (F13).
+  und Pipeline. Speichert jemand gleichzeitig *denselben* Wert, erkennt das `RealtimeMarks`
+  (`lib/optimistic.ts`): kam seit dem Absenden ein Event für den Record, wird nicht
+  zurückgerollt (das Event brachte schon den Server-Stand). Gilt auch für Moves und `rankAt`.
+  Gemeinsame Helfer (`isGone`, `checkSession`, `rollback`, `MAX_RANK_LENGTH`) nur dort.
 * **Neu-Nummerieren:** `rankAt()` arbeitet auf einer **Kopie** der Liste (Realtime kann die
-  Live-Liste währenddessen verschieben), schickt die Updates per `allSettled`, setzt
-  fehlgeschlagene auf ihren Server-Rank zurück und sortiert die betroffene Live-Liste danach
-  komplett mit `byRank` (`sortLive`). Atomar ist das nicht (F13: Batch-API). Ein Fehler mit
-  400/403/404 prüft zusätzlich die Session.
+  Live-Liste währenddessen verschieben) und speichert per `saveRanks()` als **eine
+  Batch-Transaktion** (Batch-API, in der Migration `1793190007` aktiviert: 1000 Requests,
+  10 s). Scheitert sie, bleibt der Server unverändert; lokal zurück auf Server-Ranks, dann
+  `sortLive`. Über 1000 Einträge wird in Teilen gespeichert und ist nicht mehr atomar. Ein
+  Fehler mit 400/403/404 prüft zusätzlich die Session. Batch-Requests laufen durch Rules und
+  Request-Hooks; ein fehlschlagender Teil macht den ganzen Batch zu einem 400.
 * **Rollbacks:** ein `404` heißt „von jemand anderem gelöscht" — dann lokal entfernen,
   nicht zurückrollen (sonst bleibt eine Geisterkarte). *Aber erst die Session prüfen*
   (`isGone()` ruft `auth.refresh()`): mit ungültigem Token antwortet PocketBase ebenfalls
