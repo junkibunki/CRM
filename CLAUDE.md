@@ -1,0 +1,161 @@
+# CLAUDE.md — CRM
+
+Notizen für zukünftige Sessions. Ergänzt das [README](README.md) (das erklärt Setup und
+Deploy für Menschen); hier steht, was beim Arbeiten am Code stolpert.
+
+## Workflow
+
+### Review vor jedem Commit
+
+* **Vor dem Committen muss ein unabhängiger Subagent ohne Vorwissen das Entwickelte
+  reviewen.**
+* Der Agent bekommt **nur eine kurze Einleitung zur Anforderung an das Feature** — nicht,
+  was umgesetzt wurde, nicht welche Dateien betroffen sind, keine Begründungen. Er soll
+  unvoreingenommen gegen die Anforderung prüfen, nicht die eigene Erzählung bestätigen.
+* Er soll keine UI-Tests durchführen. Reine UI-Änderungen kann der Nutzer selbst testen,
+  das spart Token.
+* **Nur committen, wenn der Agent grünes Licht gibt.** Bei Findings: erst beheben.
+
+**Nach dem Beheben ist ein zweites Review nicht automatisch fällig** — entscheide nach dem
+Umfang der Korrektur, nicht nach der Zahl der Findings:
+
+* **Klein → direkt committen.** Die Korrektur blieb im schon geprüften Code, hat keinen
+  neuen Ablaufpfad geschaffen und nichts angefasst, was außerhalb liegt: eine
+  Bedingung gedreht, einen Fehlerfall ergänzt, umbenannt, Text- und Layoutkram, eine
+  vergessene `expand`-Option.
+* **Groß → erneut reviewen.** Sobald die Korrektur eine neue Ablauflogik einführt, weitere
+  Dateien mitzieht, Schema/Migration/API-Rules berührt, an Auth, Import oder dem
+  MCP-Server dreht, oder wenn du beim Beheben gemerkt hast, dass der Ansatz selbst nicht
+  stimmte. Dann sieht der zweite Agent faktisch neuen Code — der war noch nie geprüft.
+* Im Zweifel reviewen. Ein zweiter Durchlauf kostet weniger als ein Fehler, der über
+  `main` auf den VPS geht.
+
+### Pitfalls dokumentieren
+
+**Wann.** Wenn dich bei der Entwicklung etwas Zeit gekostet hat, weil es nicht
+offensichtlich war: eine Fehlermeldung, die in die Irre führt, eine API, die sich anders
+verhält als erwartet, ein Tool-/Umgebungsproblem, das wie ein Bug im Code aussieht.
+Kein Pitfall ist: was der Code oder die git-History ohnehin schon zeigt.
+
+**Wohin.** In dieser Reihenfolge prüfen:
+
+1. Gehört er zu einem Thema der Tabelle unten → in *diese* Datei, in den passenden
+   Abschnitt. Nicht ans Ende hängen.
+2. Betrifft er Svelte-Runes oder das PocketBase-SDK/Realtime → in die entsprechende Liste
+   hier in CLAUDE.md. Das sind die einzigen zwei Themen, die dauerhaft im Kontext bleiben.
+3. Sonst: **neue Datei unter `docs/pitfalls/`**, benannt nach dem Thema, mit einer
+   Kopfzeile „Lesen, bevor du …" — und **eine neue Zeile in der Tabelle unten**. Ohne den
+   Tabelleneintrag findet die Datei nie jemand.
+
+Ein neues Thema anzulegen ist der Normalfall, nicht die Ausnahme: lieber eine sechste
+kurze Datei als ein siebter Absatz in einer fremden.
+
+**Wie.** Kurz, im Stil der vorhandenen Einträge:
+
+* **Symptom zuerst** (die Fehlermeldung oder das beobachtete Verhalten wörtlich), dann
+  **Ursache**, dann die Lösung. Beim nächsten Mal erkennt man den Fall am Symptom wieder —
+  deshalb steht es vorn.
+* **Ein Absatz oder ein Listenpunkt, Richtwert 3–8 Zeilen.** Kein Verlaufsprotokoll der
+  Fehlersuche, keine Begründung, warum man erst woanders gesucht hat.
+* Messwerte nur, wenn sie das Erkennen tragen, nicht als Beleg dafür, dass gemessen wurde.
+* Wird ein Abschnitt beim Ergänzen länger als ~80 Zeilen, teile ihn auf, statt ihn wachsen
+  zu lassen. Diese Datei soll unter ~200 Zeilen bleiben.
+
+## Vertiefung: erst lesen, wenn das Thema dran ist
+
+Diese Dateien sind bewusst *nicht* in diese Datei eingebunden (auch nicht per `@import`),
+damit sie nur Kontext kosten, wenn sie gebraucht werden.
+
+| Datei | Lesen, bevor du … |
+|---|---|
+| [migrationen.md](docs/pitfalls/migrationen.md) | eine Migration in `pocketbase/pb_migrations/` anlegst oder änderst |
+| [pocketbase-hooks.md](docs/pitfalls/pocketbase-hooks.md) | etwas in `pocketbase/pb_hooks/` schreibst (Request-Hook, Route, Cron) |
+| [testen.md](docs/pitfalls/testen.md) | die App lokal startest oder im Browser verifizierst |
+
+## Struktur
+
+```
+/
+├── web/                           # SvelteKit 3, Svelte 5 Runes, TypeScript, SPA
+│   ├── vite.config.ts             # adapter-static (Output -> ../pocketbase/pb_public,
+│   │                              # Fallback index.html) + Dev-Proxy /api + /_ -> :8090
+│   └── src/
+│       ├── lib/
+│       │   ├── pb.ts              # PB-Client (same origin)
+│       │   └── auth.svelte.ts     # authStore-Spiegel, login/logout
+│       └── routes/                # +layout.ts (ssr=false), +layout.svelte (Guard +
+│                                  # Rahmen), +page.svelte (Übersicht), login/
+├── pocketbase/
+│   ├── pocketbase(.exe)           # gitignored, gepinnt in scripts/get-pocketbase.sh
+│   ├── pb_migrations/             # JS-Migrationen, laufen beim Start automatisch
+│   ├── pb_data/                   # gitignored, die SQLite-DB
+│   └── pb_public/                 # gitignored, Build-Output
+└── scripts/get-pocketbase.sh      # lädt das gepinnte PocketBase-Binary
+```
+
+Ein Prozess serviert alles: PocketBase liefert `pb_public/` inkl. SPA-Fallback auf
+`index.html`, dazu die API unter `/api` und das Admin-UI unter `/_`.
+
+## Svelte-5-Fallstricke
+
+* **Runes nur in `.svelte` und `.svelte.ts`/`.svelte.js`.** `$state` in einer normalen
+  `.ts` wird nicht kompiliert. Deshalb heißt die Lib-Datei `auth.svelte.ts`.
+* **Der `#lib`-Alias braucht die Dateiendung.** Symptom: `svelte-check` meldet
+  `Cannot find module '#lib/auth.svelte'`, der Build ist trotzdem grün. Ursache: SvelteKit 3
+  nutzt Node-Subpath-Imports (`"#lib/*": "./src/lib/*"` in `package.json`) statt `$lib`,
+  dort wird nichts ergänzt. Richtig: `'#lib/auth.svelte.js'` (`.js` löst auf `.ts` auf).
+* **Kein Export einer neu zugewiesenen `$state`-Variablen.** `export let items = $state([])`
+  ist `state_invalid_export`. Lösung: ein `$state`-Objekt oder eine Klasse mit
+  `$state`-Feldern exportieren und deren Properties mutieren.
+* **`$effect` braucht einen Effekt-Kontext.** Auf Modulebene aufgerufen wirft es
+  `effect_orphan`. Lade-/Subscription-Logik daher als Funktion exportieren
+  (`syncX()`, gibt das Teardown zurück) und aus dem `$effect` der Seite aufrufen.
+* Ein `bind:this`, das in einem `$effect` gelesen wird, braucht `$state` — sonst warnt
+  `svelte-check` mit `non_reactive_update` und der Effekt läuft nie.
+* **Was ein `$effect` liest, darf sein eigener Ablauf nicht schreiben.** Im Vorgängerprojekt
+  real passiert: ein `$effect` entschied den Ladehinweis mit
+  `store.loading = store.items.length === 0` und hing damit an `store.items` — genau dem,
+  was sein `getFullList().then()` neu zuweist. Ergebnis: Endlosschleife aus Laden und
+  Realtime-Neuanmeldung, **über 100 Requests in 1,2 Sekunden**. Es fällt nicht auf (Anzeige
+  richtig, `svelte-check` still, Build grün — nur der Netzwerk-Tab schreit) und frisst
+  nebenbei jede Meldung in `store.error` auf. Ein Zustand, der nur *steuert*, wie geladen
+  wird, gehört in eine gewöhnliche Modulvariable (`let loadedOnce = false`), nicht in
+  `$state`. Nach jeder `$effect`-Änderung die Requests zählen, nicht nur die Anzeige ansehen.
+* **Vite-Plugin-Import:** `import { sveltekit } from '@sveltejs/kit/vite'` — *nicht* aus
+  `@sveltejs/vite-plugin-svelte`, das exportiert kein `sveltekit`.
+
+## Realtime / PocketBase-SDK
+
+* **Immer nur einzelne Records mutieren** (`push` / `splice` / `list[i] = …`), nie
+  `list = list.filter(...)`. Sonst überschreiben sich gleichzeitige Änderungen zweier
+  Personen gegenseitig.
+* **Create-Events deduplizieren.** `pb.create()` liefert den Record zurück *und* die
+  Subscription feuert ein `create`-Event für denselben Record — ohne `findIndex`-Check
+  steht der Eintrag doppelt in der Liste.
+* **`pb.authStore.record`**, nicht `.model` (seit SDK 0.22).
+* **`expand` kommt leer zurück, wenn die View-Rule der Zielcollection zumacht.** Symptom:
+  `record.expand` ist `{}`, kein Fehler, kein Log. Ursache bei `users`: die Standard-Rule
+  `id = @request.auth.id` lässt nur den eigenen Datensatz durch. Siehe
+  [migrationen.md](docs/pitfalls/migrationen.md#api-rules).
+* **`expand` muss an *jeden* Call**, sonst fehlt der Name genau im ungetesteten Pfad:
+  `getFullList({ expand })`, `create(data, { expand })`, `update(id, data, { expand })`
+  und — leicht übersehen — `subscribe('*', cb, { expand })` als **drittes** Argument.
+* Optimistische Updates rollen bei einem Fehler den vorherigen Zustand zurück; dabei auch
+  `expand`-Felder lokal setzen, sonst springt die Anzeige erst mit dem Realtime-Event nach.
+
+## Sonstiges
+
+* `npm run build` (adapter-static) leert `pocketbase/pb_public/` vor jedem Build; dort
+  abgelegte Dateien (auch ein `.gitkeep`) überleben das nicht.
+* Der Bash-Tool-Arbeitsordner bleibt zwischen Aufrufen bestehen — kein blindes
+  `cd web && …` voranstellen.
+* Lange Markdown-Dateien über das `Write`-Tool schreiben; als Bash-Heredoc brechen sie am
+  Quoting.
+* **Kein `npx prettier --write`.** Es gibt keine Prettier-Konfiguration im Repo — `npx`
+  greift auf die Defaults zurück (doppelte Anführungszeichen, zwei Leerzeichen) und kann
+  `.svelte` ohne Plugin gar nicht parsen. Im Stil der Nachbardatei schreiben (Tabs,
+  einfache Anführungszeichen).
+* **`command not found` für ein Kommando, das es offensichtlich gibt**, mit
+  `bash: $'\033[200~systemctl': command not found` (bzw. `^[[200~`). Das ist der
+  Bracketed-Paste-Marker des Terminals. Abstellen mit
+  `bind 'set enable-bracketed-paste off'` oder die Zeile tippen statt einfügen.
