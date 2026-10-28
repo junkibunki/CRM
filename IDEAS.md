@@ -411,6 +411,94 @@ und schlägt Firmenname, Adresse, Telefon und E-Mail vor.
 
 ---
 
+## F12 – Bedingungen pro Phase (Stage Gates)
+
+**Status:** offen · **Abhängig von:** F7 (gleiche Dateien: `ColumnDialog`, `KanbanBoard`,
+`KanbanCard`, `board.svelte.ts`) — **nach F7** umsetzen · **Migration reserviert:**
+`1793190003_stage_requirements.js`
+
+**Ziel:** Eine Phase kann Bedingungen haben, die erfüllt sein müssen, bevor ein Lead in
+diese oder eine spätere Phase kommt. Beispiel: ab „Angebot" muss der Lead bei Siemens als
+Lead geflaggt sein, mit dem Hinweis, wen man informieren muss. Allgemein und pro Phase
+konfigurierbar.
+
+**Entscheidungen (geklärt)**
+* Eine Bedingung gilt **ab ihrer Phase**: für diese und alle späteren Phasen (nach `rank`).
+  Wer Phasen überspringt (Neu → Verhandlung), muss alle Bedingungen dazwischen erfüllen.
+* Arten: **Ja/Nein-Flag** und **Text** (z. B. Siemens-Lead-Nummer). Text gilt als erfüllt,
+  wenn er nicht leer ist.
+* „Personen informieren" ist ein **Hinweistext** an der Bedingung; das Abhaken bestätigt
+  es. Keine automatischen E-Mails.
+* **Zurücknehmen erlaubt**, mit Bestätigung; steht der Lead danach in einer Phase, deren
+  Bedingung offen ist, zeigt die Karte ein Warnsymbol. Alles wird protokolliert.
+
+**Datenmodell (Vorschlag)**
+* `stage_requirements`: `column` (Relation → board_columns, Pflicht, cascade), `label`
+  (Pflicht, z. B. „Bei Siemens als Lead geflaggt"), `type` (select: `flag`, `text`),
+  `hint` (optional, z. B. „Vertriebsleitung und Siemens-Ansprechpartner informieren"),
+  `rank` (Reihenfolge innerhalb der Phase), autodates.
+* `lead_checks`: `lead` (Relation → leads, Pflicht, cascade), `requirement` (Relation →
+  stage_requirements, Pflicht, cascade), `value` (text; bei `flag` `"true"`), `by`
+  (Relation → users, per Rule `= @request.auth.id`), autodates. **Unique-Index**
+  `(lead, requirement)`. Zurücknehmen = Datensatz löschen.
+* `lead_check_events` (Protokoll, nur per Hook geschrieben, für Nutzer nur lesbar):
+  `lead`, `requirement_label` (Kopie, damit es auch nach Löschen der Bedingung lesbar
+  bleibt), `action` (`confirmed`, `changed`, `revoked`), `value`, `by`, `created`.
+
+**Durchsetzung (Server, Pflicht)**
+* Hook auf `leads` (Update mit geändertem `column`, und Create): Bedingungen aller Phasen
+  desselben Boards mit `rank` ≤ Ziel-Phase sammeln; fehlt ein erfüllter `lead_check`,
+  Abbruch mit `ValidationError` auf `column` und den offenen Bezeichnungen im Text. Vorher
+  `docs/pitfalls/pocketbase-hooks.md` lesen (Rule läuft vor dem Hook, Feldfehler als
+  `ValidationError`, kein Modulscope im Callback).
+* **Neuer Lead direkt in einer Phase mit Bedingungen:** `lead_checks` brauchen eine
+  vorhandene Lead-ID, der Create-Hook würde den Lead aber ablehnen. Deshalb eine Route
+  `POST /api/crm/leads` (nur angemeldet), die Lead + Bestätigungen **in einer
+  Transaktion** anlegt; der `LeadDialog` nutzt sie, wenn die Ziel-Phase Bedingungen hat.
+* Hooks auf `lead_checks` schreiben die `lead_check_events`.
+* Werden Bedingungen nachträglich hinzugefügt oder Phasen umsortiert, werden Leads, die
+  schon dort stehen, **nicht** zurückgeschoben; ihre Karten zeigen das Warnsymbol.
+
+**Bedienung**
+* **Konfiguration im Phasen-Dialog:** Abschnitt „Bedingungen ab dieser Phase". Beim
+  **Anlegen** einer Phase fragt der Dialog ausdrücklich: „Soll diese Phase Bedingungen
+  haben?" (Ja → Liste aufklappen). Pro Bedingung: Bezeichnung, Art (Flag/Text), Hinweis;
+  hinzufügen, bearbeiten, löschen, sortieren. Phasen mit Bedingungen tragen ein kleines
+  Schloss-Symbol im Kopf.
+* **Verschieben:** Lässt man einen Lead in eine Phase fallen, deren (kumulierte)
+  Bedingungen offen sind, öffnet sich der Dialog „Bevor ‚<Lead>' nach ‚<Phase>' kann" mit
+  den offenen Bedingungen (Checkbox bzw. Textfeld, Hinweis darunter). „Bestätigen und
+  verschieben" speichert erst die Bestätigungen, dann den Move; „Abbrechen" lässt die Karte
+  an ihrem Platz (kein optimistischer Move vor der Bestätigung). Erfüllte Bedingungen →
+  Move wie bisher, ohne Dialog.
+* Derselbe Dialog greift beim Phasenwechsel auf der Detailseite (F2) und beim Anlegen
+  eines Leads in einer Phase mit Bedingungen.
+* **Karte:** Warnsymbol mit Tooltip („Bedingung offen: …"), wenn der Lead in einer Phase
+  steht, deren Bedingungen nicht alle erfüllt sind.
+* **Detailseite (F2):** Kachel „Bedingungen" mit Status je Bedingung (wer, wann, Wert),
+  Bearbeiten/Zurücknehmen (mit Warnung) und Protokoll.
+
+**Performance:** keine Abfrage pro Karte. Das Board lädt `stage_requirements` der Pipeline
+und alle `lead_checks` ihrer Leads mit je **einer** Abfrage (`liveSync()`), Auswertung im
+Client als Map Lead → offene Bedingungen.
+
+**Akzeptanzkriterien**
+* Ohne erfüllte Bedingungen kommt ein Lead weder per Drag & Drop noch per API in die
+  Phase oder eine spätere (API-Test mit HTTP: 400 mit verständlicher Meldung).
+* Bestätigen, Ändern und Zurücknehmen sind protokolliert und für alle live sichtbar.
+* Ein Lead mit erfüllten Bedingungen verschiebt sich ohne zusätzlichen Klick.
+
+**Besitzt:** `pocketbase/pb_migrations/1793190003_stage_requirements.js`,
+`pocketbase/pb_hooks/stage-gates.pb.js` + `stage-gates-lib.js`,
+`web/src/lib/gates/` (neu: Store, `GateDialog.svelte`, `RequirementsEditor.svelte`,
+`GateBadge.svelte`, eigene `types.ts`)
+**Darf ändern:** `web/src/lib/kanban/ColumnDialog.svelte` (Abschnitt Bedingungen),
+`web/src/lib/kanban/KanbanBoard.svelte` (vor `moveLead` den Gate-Dialog), `KanbanCard.svelte`
+und `KanbanColumn.svelte` (Badge, Schloss), `web/src/lib/kanban/LeadDialog.svelte` (Anlegen
+über die Route), `web/src/routes/leads/+page.svelte` (Stores starten)
+
+---
+
 ## Reihenfolge / Parallelisierung
 
 * **Parallel startbar:** F1, F2, F3 (disjunkte Dateien; F2 nutzt bis F3 fertig ist einen
@@ -418,6 +506,8 @@ und schlägt Firmenname, Adresse, Telefon und E-Mail vor.
 * **F7** kann parallel zu F2 und F3 laufen, aber **nach F1** (beide ändern
   `KanbanBoard.svelte`).
 * **F9** ist unabhängig und jederzeit startbar; **F10 erst nach F9** (gleiche Dialoge).
+* **F12 erst nach F7** (gleiche Board-Dateien); die Bedingungen-Kachel auf der Detailseite
+  kommt mit der Integration nach F2.
 * **Danach:** Integration F2 + F3 + F7 (Platzhalter durch `ActivityTimeline` und
   `TodoList` ersetzen, „To-Do aus Notiz"), dann F4.
 * Nach jedem Feature: zentrale Doku-Zusammenführung (CLAUDE.md-Struktur, Pitfalls).
