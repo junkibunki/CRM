@@ -15,9 +15,11 @@
 		/** null = create */
 		company: Company | null;
 		open: boolean;
+		/** initial values for a new company (e.g. name and website from an e-mail domain) */
+		prefill?: Partial<typeof empty>;
 		onsaved?: (company: Company) => void;
 	};
-	let { company, open = $bindable(), onsaved }: Props = $props();
+	let { company, open = $bindable(), prefill, onsaved }: Props = $props();
 
 	const empty = { name: '', website: '', email: '', phone: '', address: '', notes: '' };
 	let form = $state({ ...empty });
@@ -40,7 +42,7 @@
 						address: company.address,
 						notes: company.notes
 					}
-				: { ...empty };
+				: { ...empty, ...prefill };
 			initial = { ...form };
 			error = '';
 		});
