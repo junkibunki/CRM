@@ -127,6 +127,10 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       │   │                      # Bilder/Tabellen), sanitize.ts (DOMPurify), files.ts (Datei-Token)
 │       │   ├── todos/             # To-Dos: due.ts (Fälligkeit, rein), Pipeline-Store (eine Abfrage,
 │       │   │                      # nächstes To-Do je Lead), Lead-Store, Liste, Formular, Badge
+│       │   │                      # + „Meine To-Dos": mine.svelte.ts (ein Store für Seite und
+│       │   │                      # Zähler), groups.ts (überfällig/heute/Woche/später, Suche)
+│       │   ├── gates/             # Bedingungen pro Phase: evaluate.ts (= Hook-Lib), GateStore,
+│       │   │                      # GateDialog, RequirementsEditor, GateBadge, GatesTile
 │       │   ├── last-activity/     # letzte Aktivität je Lead (View lead_last_activity)
 │       │   ├── test/pb-mock.ts    # PocketBase-Mock für Unit-Tests (*.test.ts neben dem Code)
 │       │   ├── crm/               # CompanyDialog, ContactDialog, email-suggest.ts (Name und
@@ -137,13 +141,14 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       │   └── utils.ts           # cn() = clsx + tailwind-merge
 │       └── routes/                # +layout.ts (ssr=false), +layout.svelte (Guard +
 │                                  # Navigation), +page.svelte (-> /leads),
-│                                  # leads/ (Pipeline), leads/[id]/ (Detailseite),
+│                                  # leads/ (Pipeline), leads/[id]/ (Detailseite), todos/,
 │                                  # kontakte/, unternehmen/, login/
 ├── pocketbase/
 │   ├── pocketbase(.exe)           # gitignored, gepinnt in scripts/get-pocketbase.sh
 │   ├── pb_migrations/             # JS-Migrationen, laufen beim Start automatisch
 │   ├── pb_hooks/                  # attachment-names (Original-Dateinamen), company-lookup
-│   │                              # (GET /api/crm/company-lookup, ruft curl auf), je *.pb.js + -lib.js
+│   │                              # (GET /api/crm/company-lookup, ruft curl auf), stage-gates
+│   │                              # (Gate-Prüfung, Protokoll, POST /api/crm/leads), je *.pb.js + -lib.js
 │   ├── pb_data/                   # gitignored, die SQLite-DB
 │   └── pb_public/                 # gitignored, Build-Output
 ├── scripts/get-pocketbase.sh      # lädt das gepinnte PocketBase-Binary (+ Prüfsumme)
@@ -201,6 +206,9 @@ Ein Prozess serviert alles: PocketBase liefert `pb_public/` inkl. SPA-Fallback a
   Nach dem breiteren Kriterium abonnieren (z. B. pro Board) und im Client filtern.
 * **View-Collections senden keine Realtime-Events.** Die Basis-Collection abonnieren und die
   betroffene View-Zeile neu lesen (`lib/last-activity/`).
+* **Eine Änderung am verknüpften Record feuert kein Event beim abonnierten.** Symptom: Lead
+  bekommt einen neuen Zuständigen, „Meine To-Dos" merkt nichts — auch nicht mit `expand`.
+  Zusätzlich die Basis-Collection mit knappen `fields` abonnieren (`todos/mine.svelte.ts`).
 * `fields` mit Modifiern (`body:excerpt(120,true)`) und Realtime-`expand` + `fields`
   (`*,expand.x.y`) funktionieren in Listen, Views und `subscribe`-Optionen.
 * **Ein abgelaufenes Token ergibt kein 401, sondern Gast-Antworten.** Symptom: Listen

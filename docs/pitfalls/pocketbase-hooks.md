@@ -36,6 +36,22 @@ Richtig ist der eigene Typ; er wird zu genau dem `{code, message}`, das das SDK 
 throw new BadRequestError(message, { text: new ValidationError('duplicate', message) });
 ```
 
+## Eigene Routen und Transaktionen
+
+* **Speichern in einer eigenen Route löst keine Request-Hooks aus.** `$app.save()` in
+  `routerAdd` überspringt `onRecord*Request` — und die API-Rules. Die Route muss selbst prüfen:
+  Gate in ihrer Transaktion, Create-Rule per
+  `tx.canAccessRecord(record, e.requestInfo(), collection.createRule)` nach `tx.save()`
+  (`stage-gates-lib.js`). Superuser-Requests über die normale API lösen Request-Hooks aus.
+* **Prüfung + Schreiben + Protokoll in einer Transaktion:**
+  `e.app.runInTransaction((tx) => { e.app = tx; …; e.next(); tx.save(log) })` funktioniert in
+  der 0.40-VM. Ein `ValidationError` aus `tx.save()` kommt in einer Route als 400 mit Felddaten an.
+* **Antworten ohne zu speichern:** `return e.json(200, e.record.original())` ohne `e.next()` —
+  kein `updated`, kein Realtime-Event, kein Protokoll (gleicher Wert erneut gespeichert).
+* **Felder einer Collection dynamisch:** über `collection.fields` mit `f.getSystem()`,
+  `f.type()` (eine Methode!) und `f.getName()`; `autodate` überspringen. Eine feste Feldliste
+  verschluckt später ergänzte Felder lautlos.
+
 ## Fallstricke der JS-VM
 
 **Ein Hook-Callback sieht den Modulscope seiner Datei nicht.** Jeder Callback läuft in

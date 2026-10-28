@@ -53,6 +53,10 @@ Muss **genau einen** Namen ausgeben. Heilmittel ist ein erneutes `npm run build`
   (`EPERM, Permission denied: …\Temp\…`). Die Wegwerf-Datenbank liegt deshalb unter
   `pocketbase/pb_test_*` (gitignored). Aufräumen erst **nach dem Prozessende** — direkt nach
   `kill()` hält PocketBase unter Windows die Dateien noch (`EPERM` aus `rmSync`).
+* **Ein API-Test, der Rules oder Schema ändert, schreibt eine Migration ins Repo**, wenn die
+  Wegwerf-PocketBase mit Automigrate läuft (ihr `--migrationsDir` ist der des Repos). Solche
+  Test-Server mit `--automigrate=false` starten (`scripts/test-api-gates.mjs`); danach
+  `git status` prüfen.
 
 ## Server starten
 
@@ -67,6 +71,10 @@ Muss **genau einen** Namen ausgeben. Heilmittel ist ein erneutes `npm run build`
   Hash; im Worktree fehlen kurz zuvor committete Dateien (z. B. `scripts/agent-env.sh`).
   Nach dem Start prüfen und im Worktree `git merge --ff-only main` ausführen, bevor der
   Agent loslegt.
+* **Bash verweigert im isolierten Worktree Befehle** („This agent is isolated in the worktree …
+  too complex to verify"): `node -e` mit Backticks/Heredocs, `find` mit `$LOCALAPPDATA`,
+  Ketten mit `git -C`, anhängende Heredocs. Einfache Einzelbefehle, Skripte im Scratchpad,
+  Glob-Werkzeug für Pfade, Edit zum Anhängen. Python ist nicht installiert.
 * **Seed-Dateien:** jede Datei in `scripts/seed/` exportiert
   `default async ({ api, token, DEV_USER, DEV_SUPERUSER }) => {}`, läuft in Namensreihenfolge
   (`10-crm.mjs` zuerst) und muss idempotent sein (überspringen, wenn ihre Daten schon da
@@ -151,6 +159,11 @@ Ist der Playwright-MCP belegt (`Browser is already in use`), geht es auch von Ha
 (`find "$LOCALAPPDATA/npm-cache/_npx" -maxdepth 4 -name playwright-core`), per absolutem
 Pfad `require`n und `chromium.launch({ executablePath: …/chrome.exe, args:
 ['--no-sandbox'] })` mit der Binary von unten. Skript als `.cjs` in den Scratchpad legen.
+
+**Locator in einer Liste, die beim Klick schrumpft:** `locator('li').first().check()` auf einer
+Liste, aus der Abhaken die Zeile entfernt, greift beim Nachprüfen die nächste Zeile und klickt
+weiter — ein Klick hakte alle 8 To-Dos ab. Erst ein festes Element holen:
+`(await loc.elementHandle()).click()`.
 
 ### Ausweg: Chromium selbst per CDP fahren
 

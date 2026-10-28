@@ -12,6 +12,9 @@ Seite mit Live-Daten baust.
 | `activities` | `type`* (`note`, `meeting`, `email_in`, `email_out`), `body`* (HTML, ≤ 1 MB), `occurred_at`*, `subject`, `attachments` (≤ 10 × 20 MB, **protected**) | `lead`* → leads (cascade), `contacts` → contacts, `author`* → users |
 | `todos` | `title`*, `due`*, `due_has_time`, `done`, `done_at` | `lead`* → leads (cascade), `source_activity` → activities (ohne cascade), `created_by`* → users |
 | `lead_last_activity` | View: je Lead die letzte Aktivität (Art, Zeitpunkt, Auszug) | nur lesbar, keine Realtime-Events |
+| `stage_requirements` | `label`*, `type`* (`flag`, `text`), `hint`, `rank` | `column`* → board_columns (cascade, unveränderlich) |
+| `lead_checks` | `value` (bei `flag` `"true"`, Text getrimmt) · Unique (`lead`, `requirement`) | `lead`* → leads (cascade), `requirement`* → stage_requirements (cascade), `by` → users |
+| `lead_check_events` | Protokoll, nur per Hook: `action` (`confirmed`, `changed`, `revoked`), `value`, `requirement_label` (Kopie) | `lead`* (cascade), `requirement` (wird geleert), `by` |
 | `leads` | `title`*, `expected_close` (optional), `rank`* | `company`* → companies, `contacts`* → contacts (1–50), `owner`* → users, `column`* → board_columns |
 
 `*` = Pflicht. `created`/`updated` sind `autodate`-Felder; das Erstellungsdatum eines
@@ -56,6 +59,16 @@ Sperren eines Mitarbeiters genügt es, sein Passwort zu ändern.
   (eine To-Do-Quelle muss zum selben Lead gehören) funktioniert in 0.40.
 * `board_columns.closed`: abgeschlossene Phase (Gewonnen/Verloren), dort kein Hinweis
   „Kein nächster Schritt".
+* **Bedingungen (F12):** gelten kumuliert nach `rank` für die eigene und alle späteren Phasen
+  desselben Boards; Durchsetzung im Hook `stage-gates` (auch für Superuser), Auswertung im
+  Client identisch (`lib/gates/evaluate.ts` ↔ `stage-gates-lib.js`, gemeinsame Testfälle).
+  `board_columns.gates_exempt` (Standard: „Verloren"): dort gilt nichts, die Phase bekommt keine
+  neuen Bedingungen (Rule), ihre alten zählen aber **für spätere Phasen weiter**.
+  `lead_checks.by` ist optional, weil Superuser (Admin-UI, Import) keine `users` sind; für
+  Nutzer erzwingt die Rule `by = @request.auth.id`.
+* **Update-Rule verletzt → 404, nicht 400/403.** Symptom: PATCH mit falschem `by` liefert „The
+  requested resource wasn't found". PocketBase wendet die Update-Rule als Filter an; API-Tests
+  erwarten 404.
 * `users.name` ist Pflicht (Pattern `\S`); Konten ohne Namen hat die Migration mit „Ohne Namen
   (abc123)" gefüllt, sonst schlüge jedes spätere Speichern (z. B. Passwort-Reset) fehl.
 

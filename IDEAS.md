@@ -247,6 +247,20 @@ Schnellansicht, Screenreader-Text „Close", Punkte zu den E-Mail-Vorschlägen.
   wenn die Website im Feld geändert wurde; eine ungültige Endung mit Bindestrich/Ziffer meldet
   „IP-Adressen sind nicht erlaubt".
 
+**Neu für F13b aus Welle 3** (F8, F12):
+* **Schnellansicht von „Meine To-Dos"** – der Lead-Link führt zur Detailseite, weil
+  `LeadPreview` am `BoardStore` hängt. Vorschlag: `/leads?lead=<id>` öffnet die Schnellansicht,
+  `MyTodoItem` verlinkt dorthin.
+* **Schnellansicht ohne Bedingungen** – `LeadPreview` zeigt keinen Gate-Status (Warnsymbol fehlt).
+* **Art einer Bedingung** (Flag/Text) ist nach dem Anlegen in der UI nicht änderbar; der Server
+  erzwingt das nicht (Wechsel würde bestehende Werte umdeuten). Vorschlag: per Rule sperren.
+* **Teilweise Bestätigung** – scheitert eine von mehreren Bestätigungen im Gate-Dialog, bleiben
+  die gespeicherten stehen (protokolliert), der Dialog bleibt offen. Prüfen, ob das reicht.
+* **Lead-Events an alle** – „Meine To-Dos" abonniert `leads` (wenige Felder) für jeden
+  angemeldeten Client; billig, bei Bedarf auf Owner-Wechsel einschränken.
+* **Erledigte Phasen in „Meine To-Dos"** – To-Dos von Leads in Gewonnen/Verloren erscheinen mit;
+  ggf. ausblenden.
+
 * **Atomares Neu-Nummerieren** – `board.svelte.ts` (`rankAt`): parallel laufende Updates sind
   nicht atomar; andere Nutzer sehen kurz eine durcheinandergeratene Reihenfolge. Vorschlag:
   Migration `batch.enabled = true`, dann `pb.createBatch()`; oder ein Hook-Endpoint.
@@ -380,7 +394,7 @@ mit F3 der Button „To-Do daraus anlegen".
 
 ## F8 – Übersicht „Meine To-Dos"
 
-**Status:** in Arbeit (Welle 3) · **Abhängig von:** F7
+**Status:** fertig (Welle 3) · **Abhängig von:** F7
 
 * Eigene Seite in der Navigation: alle offenen To-Dos der Leads, für die ich zuständig bin,
   gruppiert nach **überfällig**, **heute**, **diese Woche**, **später**; umschaltbar auf
@@ -506,7 +520,7 @@ und schlägt Firmenname, Adresse, Telefon und E-Mail vor.
 
 ## F12 – Bedingungen pro Phase (Stage Gates)
 
-**Status:** in Arbeit (Welle 3) · **Abhängig von:** F7 (gleiche Dateien: `ColumnDialog`, `KanbanBoard`,
+**Status:** fertig (Welle 3; Migration `1793190003`) · **Abhängig von:** F7 (gleiche Dateien: `ColumnDialog`, `KanbanBoard`,
 `KanbanCard`, `board.svelte.ts`) — **nach F7** umsetzen · **Migration reserviert:**
 `1793190003_stage_requirements.js`
 
@@ -522,6 +536,9 @@ konfigurierbar.
   wenn er nicht leer ist.
 * „Personen informieren" ist ein **Hinweistext** an der Bedingung; das Abhaken bestätigt
   es. Keine automatischen E-Mails.
+* **Ausnahme-Phasen** (geklärt in Welle 3): pro Phase „Bedingungen gelten hier nicht"
+  (`gates_exempt`, Standard „Verloren"). Dorthin ohne Bedingungen; „Gewonnen" braucht alle.
+  Eine Ausnahme-Phase befreit nur sich selbst, ihre alten Bedingungen zählen für spätere weiter.
 * **Zurücknehmen erlaubt**, mit Bestätigung; steht der Lead danach in einer Phase, deren
   Bedingung offen ist, zeigt die Karte ein Warnsymbol. Alles wird protokolliert.
 
@@ -831,7 +848,7 @@ können von einem älteren Commit abzweigen, siehe `testen.md`).
 
 **Integration 2:** mergen, prüfen, Doku.
 
-### Welle 3 – zwei Agents parallel (läuft)
+### Welle 3 – zwei Agents parallel (erledigt)
 
 | Agent | Feature | Hinweis |
 |---|---|---|
