@@ -3,7 +3,7 @@
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import { errorMessage } from '#lib/pb.js';
-	import { displayFileName, formatSize, isImageFile } from './format';
+	import { attachmentName, formatSize, isImageFile } from './format';
 	import { downloadAttachment, fileSize, thumbUrl } from './files';
 	import type { Activity } from './types';
 
@@ -19,6 +19,8 @@
 	let retried = false;
 
 	const image = $derived(isImageFile(name));
+	// original file name (hook, F13a); older uploads: stored name without the suffix
+	const label = $derived(attachmentName(activity.attachment_names, name));
 	// primitives only: a realtime edit of the activity (new object, same file) must not
 	// fetch size and preview again
 	const recId = $derived(activity.id);
@@ -66,7 +68,7 @@
 		busy = true;
 		error = '';
 		try {
-			await downloadAttachment(activity, name);
+			await downloadAttachment(activity, name, label);
 		} catch (err) {
 			error = errorMessage(err);
 		} finally {
@@ -81,7 +83,7 @@
 			type="button"
 			class="shrink-0 overflow-hidden rounded"
 			title="Herunterladen"
-			aria-label="{displayFileName(name)} herunterladen"
+			aria-label="{label} herunterladen"
 			onclick={download}
 		>
 			<img {src} alt="" class="size-12 object-cover" onerror={onImageError} />
@@ -92,7 +94,7 @@
 		</span>
 	{/if}
 	<div class="min-w-0 flex-1">
-		<p class="truncate text-sm" title={displayFileName(name)}>{displayFileName(name)}</p>
+		<p class="truncate text-sm" title={label}>{label}</p>
 		<p class="text-xs text-muted-foreground">
 			{#if error}<span class="text-destructive">{error}</span>{:else if size !== null}{formatSize(size)}{:else}&nbsp;{/if}
 		</p>
@@ -100,7 +102,7 @@
 	<button
 		type="button"
 		class="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-		aria-label="{displayFileName(name)} herunterladen"
+		aria-label="{label} herunterladen"
 		title="Herunterladen"
 		disabled={busy}
 		onclick={download}

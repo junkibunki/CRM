@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+	attachmentName,
 	compareActivities,
 	dayKey,
 	dayLabel,
@@ -12,7 +13,8 @@ import {
 	normalizeLink,
 	parsePbDate,
 	toDateTimeInput,
-	toPbDate
+	toPbDate,
+	watchDay
 } from './format';
 import type { Activity, ActivityType } from './types';
 
@@ -130,5 +132,57 @@ describe('files', () => {
 		expect(isImageFile('a.webp')).toBe(true);
 		expect(isImageFile('a.pdf')).toBe(false);
 		expect(isImageFile('a.svg')).toBe(false);
+	});
+});
+
+describe('attachmentName (F13a)', () => {
+	const stored = 'pr_sentation_abcdefghij.pdf';
+
+	it('prefers the original name stored by the hook', () => {
+		expect(attachmentName({ [stored]: 'Präsentation Q3.pdf' }, stored)).toBe('Präsentation Q3.pdf');
+	});
+
+	it('falls back to the stored name without suffix (older uploads, bad data)', () => {
+		for (const names of [undefined, null, {}, [], 'x', { [stored]: '' }, { [stored]: '  ' }, { [stored]: 3 }, { other: 'X.pdf' }]) {
+			expect(attachmentName(names, stored)).toBe('pr_sentation.pdf');
+		}
+	});
+
+	it('only reads own keys', () => {
+		expect(attachmentName({}, 'toString')).toBe('toString');
+		expect(attachmentName({}, '__proto__')).toBe('__proto__');
+	});
+});
+
+describe('watchDay', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('reports a new local day once, right after midnight (minute tick)', () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date(2026, 9, 28, 23, 58, 30));
+		const days: string[] = [];
+		const stop = watchDay((now) => days.push(dayKey(toPbDate(now))));
+		vi.advanceTimersByTime(60_000); // 23:59:30
+		expect(days).toEqual([]);
+		vi.advanceTimersByTime(60_000); // 00:00:30
+		expect(days).toEqual(['2026-10-29']);
+		vi.advanceTimersByTime(10 * 60_000);
+		expect(days).toEqual(['2026-10-29']);
+		stop();
+		vi.setSystemTime(new Date(2026, 9, 31, 12));
+		vi.advanceTimersByTime(5 * 60_000);
+		expect(days).toEqual(['2026-10-29']); // stopped
+	});
+
+	it('with the new date, groupByDay turns "Heute" into "Gestern"', () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date(2026, 9, 28, 23, 59, 30));
+		const list = [act('a', new Date(2026, 9, 28, 9))];
+		let today = new Date();
+		expect(groupByDay(list, today)[0].label).toBe('Heute');
+		const stop = watchDay((now) => (today = now));
+		vi.advanceTimersByTime(60_000);
+		expect(groupByDay(list, today)[0].label).toBe('Gestern');
+		stop();
 	});
 });

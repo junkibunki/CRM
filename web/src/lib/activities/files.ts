@@ -45,13 +45,17 @@ export async function fileSize(record: RecordModel, name: string): Promise<numbe
 	return Number.isFinite(len) ? len : null;
 }
 
-/** Starts the download of an attachment with a freshly created token (call on click). */
-export async function downloadAttachment(record: RecordModel, name: string) {
+/**
+ * Starts the download of an attachment with a freshly created token (call on click). The
+ * server names the file (Content-Disposition, original name via hook); `downloadName` is a
+ * hint for browsers that honour the download attribute.
+ */
+export async function downloadAttachment(record: RecordModel, name: string, downloadName = '') {
 	const token = await pb.files.getToken();
 	const a = document.createElement('a');
 	a.href = pb.files.getURL(record, name, { token, download: true });
 	a.rel = 'noopener';
-	a.download = '';
+	a.download = downloadName;
 	document.body.append(a);
 	a.click();
 	a.remove();

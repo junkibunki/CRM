@@ -8,7 +8,7 @@
 	import { ActivityStore } from './activities.svelte';
 	import ActivityForm from './ActivityForm.svelte';
 	import ActivityItem from './ActivityItem.svelte';
-	import { groupByDay } from './format';
+	import { groupByDay, watchDay } from './format';
 	import { ACTIVITY_FILTERS, typeLabel, type Activity, type ActivityFilter } from './types';
 
 	/** Interface for the lead page (F2): all activities of one lead, live. */
@@ -31,8 +31,12 @@
 	let confirmOpen = $state(false);
 	let deleting = $state<Activity | null>(null);
 
+	// "Heute"/"Gestern" must flip at midnight: regroup when the local day changes
+	let today = $state(new Date());
+	$effect(() => watchDay((now) => (today = now)));
+
 	const visible = $derived(store ? store.visible(filter) : []);
-	const groups = $derived(groupByDay(visible));
+	const groups = $derived(groupByDay(visible, today));
 
 	function create() {
 		editing = null;

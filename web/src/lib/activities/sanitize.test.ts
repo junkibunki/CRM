@@ -168,6 +168,77 @@ describe('sanitizeHtml', () => {
 	});
 });
 
+describe('sanitizeHtml: tables (F13a)', () => {
+	it('keeps the table structure the editor produces, without its inline styles and colgroup', () => {
+		const tiptap =
+			'<table style="min-width: 50px"><colgroup><col style="min-width: 25px"><col style="min-width: 25px"></colgroup>' +
+			'<tbody><tr><th colspan="1" rowspan="1"><p>Name</p></th><th colspan="1" rowspan="1"><p>Wert</p></th></tr>' +
+			'<tr><td colspan="2" rowspan="1"><p>zwei <strong>Spalten</strong></p></td></tr></tbody></table>';
+		expect(clean(tiptap)).toBe(
+			'<table><tbody><tr><th colspan="1" rowspan="1"><p>Name</p></th><th colspan="1" rowspan="1"><p>Wert</p></th></tr>' +
+				'<tr><td colspan="2" rowspan="1"><p>zwei <strong>Spalten</strong></p></td></tr></tbody></table>'
+		);
+	});
+
+	it('keeps thead/tfoot from e-mails', () => {
+		const html = '<table><thead><tr><th>K</th></tr></thead><tbody><tr><td>1</td></tr></tbody><tfoot><tr><td>S</td></tr></tfoot></table>';
+		expect(clean(html)).toBe(html);
+	});
+
+	it('drops table attributes that load or style anything (background, style, bgcolor, width, class)', () => {
+		const out = clean(
+			'<table background="https://t.example/a.gif" style="background:url(https://t.example/b)" bgcolor="red" width="900" class="x" border="1" cellpadding="9">' +
+				'<tr background="https://t.example/c.gif"><td background="https://t.example/d.gif" style="background-image:url(https://t.example/e)" width="50" height="9" nowrap>x</td></tr></table>'
+		);
+		expect(out).toBe('<table><tbody><tr><td>x</td></tr></tbody></table>');
+		expect(out).not.toMatch(/t\.example|style|background|width|class|border/);
+	});
+
+	it('removes event handlers on table elements', () => {
+		const out = clean(
+			'<table onmouseover="alert(1)"><tbody onclick="x()"><tr onfocus="y()"><th onmouseenter="z()">a</th><td onpointerdown="w()">b</td></tr></tbody></table>'
+		);
+		expect(out).not.toMatch(/on[a-z]+=/i);
+		expect(out).toContain('<th>a</th><td>b</td>');
+	});
+
+	it('keeps only small numeric spans (no URLs, no script, no huge layouts)', () => {
+		for (const v of ['javascript:alert(1)', '0', '-1', '1000', '2x', '2 3', 'https://t.example', '']) {
+			const out = clean(`<table><tr><td colspan="${v}" rowspan="${v}">x</td></tr></table>`);
+			expect(out, v).toBe('<table><tbody><tr><td>x</td></tr></tbody></table>');
+		}
+		expect(clean('<table><tr><td colspan="12" rowspan="3">x</td></tr></table>')).toContain('<td colspan="12" rowspan="3">');
+	});
+
+	it('removes scripts, styles and embeds inside cells, and blocks images there like anywhere', () => {
+		const r = sanitizeHtml(
+			'<table><tr><td><script>alert(1)</script><style>td{background:url(https://t.example/s)}</style>' +
+				'<iframe src="https://t.example/f"></iframe><img src="https://t.example/p.gif">ok</td></tr></table>'
+		);
+		expect(r.html).toBe('<table><tbody><tr><td>ok</td></tr></tbody></table>');
+		expect(r.blockedImages).toBe(1);
+	});
+
+	it('survives known mXSS shapes with tables (no handler, no svg/math, no style)', () => {
+		for (const html of [
+			'<table><td><svg><style><img src=x onerror=alert(1)>',
+			'<table><tr><td><math><mtext><table><mglyph><style><img src=x onerror=alert(1)>',
+			'<form><math><mtext></form><form><mglyph><style></math><img src onerror=alert(1)>',
+			'<table><caption><svg><desc><table><td><img src=x onerror=alert(1)></td></table></desc></svg></caption></table>',
+			'<noscript><table><td title="</noscript><img src=x onerror=alert(1)>">'
+		]) {
+			const out = clean(html);
+			expect(out, html).not.toMatch(/onerror|<svg|<math|<style|<script|<noscript/i);
+		}
+	});
+
+	it('drops caption, colgroup and col but keeps the caption text', () => {
+		const out = clean('<table><caption>Preise</caption><colgroup><col span="2"></colgroup><tr><td>1</td></tr></table>');
+		expect(out).not.toMatch(/caption|colgroup|<col/);
+		expect(out).toContain('Preise');
+	});
+});
+
 describe('isEmptyHtml', () => {
 	it('treats empty editor output as empty', () => {
 		expect(isEmptyHtml('')).toBe(true);

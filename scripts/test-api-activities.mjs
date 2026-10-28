@@ -181,6 +181,28 @@ describe('activities: author', () => {
 	});
 });
 
+describe('activities: lead', () => {
+	it('cannot be changed to another lead; resending the same value is fine', async () => {
+		const id = (await api('POST', '/api/collections/activities/records', activity(), anna.token)).data.id;
+		const other = await newLead(anna.token);
+		for (const body of [{ lead: other.lead }, { lead: other.lead, subject: 'verschoben' }, { 'lead+': other.lead }]) {
+			const r = await api('PATCH', `/api/collections/activities/records/${id}`, body, ben.token);
+			assert.ok(r.status >= 400, `${JSON.stringify(body)}: status ${r.status}`);
+		}
+		// `+lead` (prepend) passes the rule on a single relation, but keeps the last value
+		await api('PATCH', `/api/collections/activities/records/${id}`, { '+lead': other.lead }, ben.token);
+		assert.equal((await api('GET', `/api/collections/activities/records/${id}`, null, su)).data.lead, leadId);
+		const fd = new FormData();
+		fd.append('lead', other.lead);
+		assert.ok((await api('PATCH', `/api/collections/activities/records/${id}`, fd, anna.token)).status >= 400);
+		const same = await api('PATCH', `/api/collections/activities/records/${id}`, { lead: leadId, subject: 'gleich' }, ben.token);
+		assert.equal(same.status, 200);
+		const rec = await api('GET', `/api/collections/activities/records/${id}`, null, su);
+		assert.equal(rec.data.lead, leadId);
+		assert.equal(rec.data.subject, 'gleich');
+	});
+});
+
 describe('activities: validation', () => {
 	it('requires lead, a known type, body and occurred_at', async () => {
 		for (const bad of [{ lead: '' }, { type: 'call' }, { body: '' }, { occurred_at: '' }]) {
