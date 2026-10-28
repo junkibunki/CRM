@@ -41,6 +41,9 @@ stehen im Skript; nie gegen Produktion laufen lassen):
 node scripts/seed-dev.mjs
 ```
 
+Tests (aus `web/`): `npm test` (Unit-Tests, laufen auch automatisch vor `npm run dev`
+und `npm run build`), `npm run test:api` (API-Regeln gegen eine Wegwerf-PocketBase).
+
 Öffentliche Registrierung ist per Migration abgeschaltet; Benutzer legt ein Superuser im
 PocketBase-Dashboard (`/_/`) in der Collection `users` an.
 Schemaänderungen im Dashboard erzeugen automatisch Migrationen in `pb_migrations/` – diese committen.

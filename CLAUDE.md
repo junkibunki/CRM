@@ -42,8 +42,12 @@ Umfang der Korrektur, nicht nach der Zahl der Findings:
   (eigenes `--dir`, eigener Port), nie gegen `pocketbase/pb_data`.
 * **`npm run dev` führt vorher die Unit-Tests aus** und zeigt das Ergebnis an, damit beim
   Starten sichtbar ist, ob alles noch funktioniert. `npm run build` bricht bei roten Tests
-  ab. Vor jedem Commit: `npm test` grün. *(Stand: wird in Welle 0 der
-  [IDEAS.md](IDEAS.md) eingerichtet, bis dahin gibt es noch keine Tests.)*
+  ab. Vor jedem Commit: `npm test` grün, bei Schema/Rules/Hooks zusätzlich
+  `npm run test:api` (beides aus `web/`).
+* Werkzeuge: `web/src/lib/test/pb-mock.ts` (PocketBase-Client im Speicher: Realtime-Events,
+  Reconnect, Fehler, angehaltene Requests, ungültige Session) und `scripts/test-api.mjs`
+  (Wegwerf-PocketBase). Beispiele: `board.test.ts`, `live.test.ts`. Fallstricke in
+  [testen.md](docs/pitfalls/testen.md#unit-tests).
 
 ### Pitfalls dokumentieren
 
@@ -113,7 +117,9 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       │   ├── rank.ts            # fractional-indexing: byRank, rankBetween, insertSorted
 │       │   ├── board.svelte.ts    # BoardStore: Pipeline laden, Realtime, optimistische Moves
 │       │   ├── kanban/            # KanbanBoard (DnD-Monitor), KanbanColumn, KanbanCard,
-│       │   │                      # LeadDialog, ColumnDialog, BoardSettingsDialog
+│       │   │                      # LeadDialog, ColumnDialog, BoardSettingsDialog,
+│       │   │                      # drop.ts (Drop-Index als reine Funktion)
+│       │   ├── test/pb-mock.ts    # PocketBase-Mock für Unit-Tests (*.test.ts neben dem Code)
 │       │   ├── crm/               # CompanyDialog, ContactDialog
 │       │   ├── components/        # ConfirmDialog, PageHeader (Titel + Suche + Aktionen)
 │       │   ├── components/ui/     # shadcn-svelte, CLI-Output (nicht händisch pflegen)
@@ -127,8 +133,12 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │   ├── pb_data/                   # gitignored, die SQLite-DB
 │   └── pb_public/                 # gitignored, Build-Output
 ├── scripts/get-pocketbase.sh      # lädt das gepinnte PocketBase-Binary (+ Prüfsumme)
-└── scripts/seed-dev.mjs           # nur lokal: Superuser, Dev-User, Demo-Unternehmen,
-                                   # -Kontakte und -Leads
+├── scripts/seed-dev.mjs           # nur lokal: Superuser, Dev-User, dann scripts/seed/*.mjs
+├── scripts/seed/                  # Demo-Daten, eine Datei pro Feature (idempotent)
+├── scripts/test-api.mjs           # API-/Rule-Tests gegen Wegwerf-PocketBase (npm run test:api)
+├── scripts/agent-env.sh           # eigene Ports (PB 810n, Vite 518n) + Datenbank pro Worktree;
+│                                  # dort nie launch.json/Browser-Pane (siehe testen.md)
+└── web/scripts/predev.mjs         # Unit-Tests vor npm run dev, Ergebnis gut sichtbar
 ```
 
 Ein Prozess serviert alles: PocketBase liefert `pb_public/` inkl. SPA-Fallback auf

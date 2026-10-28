@@ -283,8 +283,10 @@ reichen), `web/src/lib/kanban/ColumnDialog.svelte` (Schalter „Abgeschlossene P
 `web/src/lib/kanban/KanbanBoard.svelte` und `KanbanColumn.svelte` nur zum
 Durchreichen der Map — **Achtung:** `KanbanBoard.svelte` gehört auch F1; F1 und F7 deshalb
 nicht gleichzeitig, oder F7 erst nach F1.
-**Zentral vorab (nicht vom Agenten):** in `web/src/lib/types.ts` `CARD_FIELDS` um
-`next_todo` und `BoardColumn` um `closed: boolean` ergänzen.
+**Zentral vorab (erledigt in Welle 0):** in `web/src/lib/types.ts` ist `next_todo` im Typ
+`CardField` und `closed?: boolean` in `BoardColumn` vorbereitet. **Ausnahme:** F7 ergänzt
+selbst den Eintrag `{ key: 'next_todo', label: 'Nächstes To-Do' }` in `CARD_FIELDS` (erst
+dann ist das Feld in den Pipeline-Einstellungen sichtbar).
 
 **Integration danach:** F2 bindet `<TodoList>` als Kachel ein; F1 zeigt das nächste To-Do;
 mit F3 der Button „To-Do daraus anlegen".
@@ -547,19 +549,19 @@ Dateien; in Welle 2 ändert F7 dort nur `ActivityItem.svelte` (Button „To-Do d
    Feature legt seine Demo-Daten in eine **eigene** Datei (z. B. `seed/activities.mjs`).
 4. **Parallele Umgebungen:** Skript `scripts/agent-env.sh <n>`, das in einem Worktree das
    PocketBase-Binary aus dem Haupt-Checkout kopiert, eigene `pb_data` anlegt (Migrationen
-   + Seed) und Ports vergibt: PocketBase `809<n>`, Vite `517<n>` (Proxy-Ziel per
-   Umgebungsvariable statt fest `:8090`).
+   + Seed) und Ports vergibt: PocketBase `810<n>`, Vite `518<n>` (Proxy-Ziel per
+   Umgebungsvariable `PB_URL` statt fest `:8090`).
 5. Alles committen; erst dann starten die Agents.
 
 ### Welle 1 – fünf Agents parallel
 
 | Agent | Feature | Ports | Hinweis |
 |---|---|---|---|
-| A1 | **F1** Schnellansicht | 8091 / 5171 | zeigt noch kein To-Do, keine Aktivität |
-| A2 | **F2** Detailseite | 8092 / 5172 | Platzhalter für Aktivitäten, To-Dos, Bedingungen |
-| A3 | **F3** Aktivitäten | 8093 / 5173 | größtes Feature; Seed in `seed/activities.mjs` |
-| A4 | **F5** Sammelposten | 8094 / 5174 | nur die 8 Punkte, keine neuen Features |
-| A5 | **F9** Kontakt aus E-Mail | 8095 / 5175 | mit Vitest-Tests |
+| A1 | **F1** Schnellansicht | 8101 / 5181 | zeigt noch kein To-Do, keine Aktivität |
+| A2 | **F2** Detailseite | 8102 / 5182 | Platzhalter für Aktivitäten, To-Dos, Bedingungen |
+| A3 | **F3** Aktivitäten | 8103 / 5183 | größtes Feature; Seed in `seed/activities.mjs` |
+| A4 | **F5** Sammelposten | 8104 / 5184 | nur die 8 Punkte, keine neuen Features |
+| A5 | **F9** Kontakt aus E-Mail | 8105 / 5185 | mit Vitest-Tests |
 
 **Integration 1 (Orchestrator):** Branches nacheinander nach `main` mergen (F9 → F5 →
 F3 → F2 → F1), nach jedem Merge `check` + `build`; danach `ActivityTimeline` in die

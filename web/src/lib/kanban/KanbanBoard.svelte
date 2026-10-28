@@ -16,6 +16,7 @@
 		type Lead
 	} from '#lib/types.js';
 	import ColumnDialog from './ColumnDialog.svelte';
+	import { cardDrop, columnDrop, type CardTarget } from './drop';
 	import KanbanColumn from './KanbanColumn.svelte';
 	import LeadDialog from './LeadDialog.svelte';
 
@@ -45,32 +46,19 @@
 
 	type Data = Record<string | symbol, unknown>;
 
+	// the index maths lives in drop.ts (pure, unit-tested); this only maps the DnD data
 	function drop(src: Data, dst: Data) {
 		if (isCardData(src)) {
-			let columnId: string;
-			let toIndex: number;
-			if (isCardData(dst)) {
-				if (dst.cardId === src.cardId) return; // dropped onto itself
-				columnId = dst.columnId;
-				const others = (store.leads[columnId] ?? []).filter((c) => c.id !== src.cardId);
-				const i = others.findIndex((c) => c.id === dst.cardId);
-				if (i === -1) return;
-				toIndex = extractClosestEdge(dst) === 'bottom' ? i + 1 : i;
-			} else if (isCardListData(dst)) {
-				columnId = dst.columnId;
-				toIndex = (store.leads[columnId] ?? []).filter((c) => c.id !== src.cardId).length;
-			} else return;
-			// unchanged position: nothing to save
-			const current = (store.leads[columnId] ?? []).findIndex((c) => c.id === src.cardId);
-			if (current === toIndex) return;
-			store.moveLead(src.cardId, columnId, toIndex);
+			const target: CardTarget | null = isCardData(dst)
+				? { kind: 'card', cardId: dst.cardId, columnId: dst.columnId, edge: extractClosestEdge(dst) }
+				: isCardListData(dst)
+					? { kind: 'list', columnId: dst.columnId }
+					: null;
+			const move = target && cardDrop(store.leads, src.cardId, target);
+			if (move) store.moveLead(src.cardId, move.columnId, move.toIndex);
 		} else if (isColumnData(src) && isColumnData(dst)) {
-			const others = store.columns.filter((c) => c.id !== src.columnId);
-			const i = others.findIndex((c) => c.id === dst.columnId);
-			if (i === -1) return;
-			const toIndex = extractClosestEdge(dst) === 'right' ? i + 1 : i;
-			if (store.columns.findIndex((c) => c.id === src.columnId) === toIndex) return;
-			store.moveColumn(src.columnId, toIndex);
+			const toIndex = columnDrop(store.columns, src.columnId, dst.columnId, extractClosestEdge(dst));
+			if (toIndex !== null) store.moveColumn(src.columnId, toIndex);
 		}
 	}
 

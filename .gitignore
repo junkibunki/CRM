@@ -7,3 +7,9 @@ pocketbase/*.zip
 
 # Playwright-MCP screenshots/snapshots
 .playwright-mcp/
+
+# per-agent logs (scripts/agent-env.sh)
+pocketbase/pb-agent.log
+web/vite-agent.log
+# throwaway databases of npm run test:api
+pocketbase/pb_test_*/

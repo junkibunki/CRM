@@ -1,7 +1,9 @@
 import adapter from '@sveltejs/adapter-static';
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
+
+const PB_URL = process.env.PB_URL ?? 'http://127.0.0.1:8090';
 
 export default defineConfig({
 	plugins: [
@@ -17,8 +19,15 @@ export default defineConfig({
 			adapter: adapter({ pages: '../pocketbase/pb_public', fallback: 'index.html' })
 		})
 	],
-	// dev: forward API calls to the local PocketBase instance
+	// dev: forward API calls to the local PocketBase instance (PB_URL: parallel agent envs)
 	server: {
-		proxy: { '/api': 'http://127.0.0.1:8090', '/_/': 'http://127.0.0.1:8090' }
+		proxy: { '/api': PB_URL, '/_/': PB_URL }
+	},
+	// runes ($state/$derived) only react in the client build, hence browser conditions + jsdom
+	resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,
+	test: {
+		include: ['src/**/*.test.ts'],
+		environment: 'jsdom',
+		restoreMocks: true
 	}
 });

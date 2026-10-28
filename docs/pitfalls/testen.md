@@ -16,8 +16,42 @@ grep -ro "__sveltekit_[a-z0-9]*" pocketbase/pb_public | sed 's/.*://' | sort -u
 
 Muss **genau einen** Namen ausgeben. Heilmittel ist ein erneutes `npm run build`.
 
+## Unit-Tests
+
+* **Runes reagieren nur im Client-Build.** Vitest läuft deshalb mit `environment: 'jsdom'`
+  und `resolve.conditions: ['browser']` (`web/vite.config.ts`). Im Server-Build wäre ein
+  `$derived` in einem Store (z. B. `LiveCollection.byId`) einmal berechnet und dann tot —
+  Tests liefen grün gegen falsches Verhalten.
+* **`$state`-Proxies lassen sich nicht mit `structuredClone` kopieren.** Symptom:
+  `DataCloneError: [object Array] could not be cloned.` beim Weiterreichen eines
+  Store-Datensatzes an den Mock. Im Test `JSON.parse(JSON.stringify(x))` (oder
+  `$state.snapshot` in `.svelte.ts`) nehmen.
+* **PocketBase mocken über `vi.mock('./pb', …)`** mit `createPbMock()` aus
+  `lib/test/pb-mock.ts`; der Mock hängt als `__mock` am gemockten Modul (Muster im
+  Dateikopf). `mock.hold(collection, method)` hält einen Request an, um Rennen
+  (Event während des Ladens, Antwort nach fremdem Update) deterministisch zu testen.
+* **`npx vitest` startet ≈ 25 s langsamer als `vitest` direkt** (Windows, gemessen: 37 s statt
+  10 s für dieselben Tests). In npm-Skripten `vitest` (ohne `npx`), in Node-Skripten
+  `node_modules/vitest/vitest.mjs` direkt aufrufen (so `web/scripts/predev.mjs`).
+* **`fractional-indexing` 4 wirft bei vertauschten Nachbarn nicht**, sondern liefert einen
+  Schlüssel zwischen beiden; nur gleiche Nachbarn ergeben `null` in `rankBetween`.
+* **`npm run test:api`: der System-Temp-Ordner ist in der Sandbox gesperrt**
+  (`EPERM, Permission denied: …\Temp\…`). Die Wegwerf-Datenbank liegt deshalb unter
+  `pocketbase/pb_test_*` (gitignored). Aufräumen erst **nach dem Prozessende** — direkt nach
+  `kill()` hält PocketBase unter Windows die Dateien noch (`EPERM` aus `rmSync`).
+
 ## Server starten
 
+* **In einem Worktree (parallele Agents) nie `.claude/launch.json` oder den Browser-Pane
+  nehmen:** beide starten Vite auf `:5173` mit Proxy auf die Haupt-PocketBase `:8090` — man
+  testet dann den Code und die Datenbank des Haupt-Checkouts. Stattdessen
+  `scripts/agent-env.sh <n>` (n = 1..9): kopiert das PocketBase-Binary, legt eine eigene
+  `pb_data` an, vergibt PocketBase `810<n>` und Vite `518<n>` und druckt die Startbefehle.
+  Vite bekommt das Proxy-Ziel über `PB_URL`, das Seed-Skript ebenso.
+* **Seed-Dateien:** jede Datei in `scripts/seed/` exportiert
+  `default async ({ api, token, DEV_USER, DEV_SUPERUSER }) => {}`, läuft in Namensreihenfolge
+  (`10-crm.mjs` zuerst) und muss idempotent sein (überspringen, wenn ihre Daten schon da
+  sind). Ein Feature = eine eigene Datei, nie eine fremde ändern.
 * **Testdaten und Logins kommen aus `scripts/seed-dev.mjs`** (Superuser, Dev-User,
   Demo-Unternehmen, -Kontakte und -Leads; Zugangsdaten stehen im Skript). Bei laufendem PocketBase vom Repo-Root:
   `node scripts/seed-dev.mjs`. Der Dev-Server startet über `.claude/launch.json` (`web`).
