@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import ListTodoIcon from '@lucide/svelte/icons/list-todo';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { goto } from '$app/navigation';
@@ -16,6 +15,7 @@
 	import PlaceholderTile from '#lib/lead/PlaceholderTile.svelte';
 	import ActivityTimeline from '#lib/activities/ActivityTimeline.svelte';
 	import { LeadStore } from '#lib/lead/lead.svelte.js';
+	import TodoList from '#lib/todos/TodoList.svelte';
 	import type { Company, Contact } from '#lib/types.js';
 	import type { PageProps } from './$types';
 
@@ -104,8 +104,7 @@
 				<aside class="order-first flex flex-col gap-4 lg:order-none">
 					<ContactsTile {lead} onopen={openContact} />
 					<CompanyTile companyId={lead.company} onopen={openCompany} />
-					<!-- F7: to-dos of this lead -->
-					<PlaceholderTile icon={ListTodoIcon} title="To-Dos" text="To-Dos folgen." />
+					<TodoList leadId={lead.id} />
 					<!-- F12: requirements of the current stage -->
 					<PlaceholderTile icon={ShieldCheckIcon} title="Bedingungen" text="Bedingungen der Phase folgen." />
 				</aside>

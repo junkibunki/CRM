@@ -34,6 +34,12 @@
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import { companyName, contactLabel, userLabel } from '#lib/collection.svelte.js';
+	import HistoryIcon from '@lucide/svelte/icons/history';
+	import { typeLabel } from '#lib/activities/types.js';
+	import { relativeDay, type LastActivity } from '#lib/last-activity/format.js';
+	import { clock } from '#lib/todos/clock.svelte.js';
+	import NextTodoBadge from '#lib/todos/NextTodoBadge.svelte';
+	import type { OpenTodo } from '#lib/todos/types.js';
 	import { cn } from '#lib/utils.js';
 	import {
 		isCardData,
@@ -43,8 +49,19 @@
 		type Lead
 	} from '#lib/types.js';
 
-	type Props = { lead: Lead; fields: CardField[]; onopen: (lead: Lead) => void };
-	let { lead, fields, onopen }: Props = $props();
+	type Props = {
+		lead: Lead;
+		fields: CardField[];
+		/** next open to-do; null = none, undefined = not known (yet), then nothing is shown */
+		nextTodo?: OpenTodo | null;
+		/** the lead's stage is closed: no "Kein nächster Schritt" hint */
+		closed?: boolean;
+		/** latest activity (F4), only passed when the card field is on */
+		lastActivity?: LastActivity;
+		onopen: (lead: Lead) => void;
+	};
+	let { lead, fields, nextTodo, closed = false, lastActivity, onopen }: Props = $props();
+	const activityAgo = $derived(lastActivity ? relativeDay(lastActivity.occurred_at, clock.now) : '');
 
 	let el = $state<HTMLElement>();
 	let dragging = $state(false);
@@ -59,7 +76,8 @@
 	);
 	const show = $derived({
 		close: fields.includes('expected_close') && close !== '',
-		owner: fields.includes('owner') && owner !== ''
+		owner: fields.includes('owner') && owner !== '',
+		todo: fields.includes('next_todo') && nextTodo !== undefined
 	});
 
 	$effect(() => {
@@ -129,6 +147,17 @@
 		{#if people}
 			<p class="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
 				<UsersIcon class="size-3 shrink-0" />{people}
+			</p>
+		{/if}
+		{#if show.todo}
+			<NextTodoBadge todo={nextTodo ?? undefined} {closed} />
+		{/if}
+		{#if lastActivity}
+			<p
+				class="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground"
+				title="Letzte Aktivität: {typeLabel(lastActivity.type)} {activityAgo}"
+			>
+				<HistoryIcon class="size-3 shrink-0" /><span class="sr-only">Letzte Aktivität:</span>{activityAgo}
 			</p>
 		{/if}
 		{#if show.close || show.owner}

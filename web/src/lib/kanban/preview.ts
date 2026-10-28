@@ -7,12 +7,18 @@ import {
 	type Contact,
 	type Lead
 } from '../types';
+import type { LastActivity } from '../last-activity/format';
+import type { OpenTodo } from '../todos/types';
 
 /** Name lookups, injected so tests don't need the live collections. */
 export type PreviewLookups = {
 	company: (id: string) => string;
 	contact: (id: string) => Pick<Contact, 'first_name' | 'last_name' | 'position'> | undefined;
 	user: (id: string) => string;
+	/** next open to-do of a lead (F7): null = none, undefined = not loaded / not available */
+	nextTodo?: (leadId: string) => OpenTodo | null | undefined;
+	/** latest activity of a lead (F4): null = none, undefined = not loaded / not available */
+	lastActivity?: (leadId: string) => LastActivity | null | undefined;
 };
 
 export type PreviewData = {
@@ -27,6 +33,12 @@ export type PreviewData = {
 	close: string;
 	overdue: boolean;
 	owner: string;
+	/** next open to-do: null = none, undefined = not known (then the row is hidden) */
+	nextTodo: OpenTodo | null | undefined;
+	/** the stage is closed (won/lost): no "Kein nächster Schritt" hint */
+	closed: boolean;
+	/** latest activity: null = none, undefined = not known (then the row is hidden) */
+	lastActivity: LastActivity | null | undefined;
 };
 
 // shared formatters: building Intl formatters per render is measurably slow
@@ -94,7 +106,10 @@ export function previewData(
 		contacts,
 		close,
 		overdue: close !== '' && close < today,
-		owner: lead.owner ? lookups.user(lead.owner) : ''
+		owner: lead.owner ? lookups.user(lead.owner) : '',
+		nextTodo: lookups.nextTodo?.(lead.id),
+		closed: !!column?.closed,
+		lastActivity: lookups.lastActivity?.(lead.id)
 	};
 }
 

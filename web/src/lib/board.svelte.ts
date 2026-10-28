@@ -272,7 +272,7 @@ export class BoardStore {
 
 	// --- columns --------------------------------------------------------------------
 
-	async addColumn(data: Pick<BoardColumn, 'name' | 'color' | 'wip_limit'>) {
+	async addColumn(data: Pick<BoardColumn, 'name' | 'color' | 'wip_limit' | 'closed'>) {
 		try {
 			const rank = await this.rankAt(this.columns, this.columns.length, 'board_columns');
 			const rec = await pb
@@ -286,13 +286,16 @@ export class BoardStore {
 		}
 	}
 
-	async updateColumn(id: string, data: Partial<Pick<BoardColumn, 'name' | 'color' | 'wip_limit'>>) {
+	async updateColumn(
+		id: string,
+		data: Partial<Pick<BoardColumn, 'name' | 'color' | 'wip_limit' | 'closed'>>
+	) {
 		const col = this.columns.find((c) => c.id === id);
 		if (!col) {
 			this.error = COLUMN_GONE;
 			return;
 		}
-		const prev = { name: col.name, color: col.color, wip_limit: col.wip_limit };
+		const prev = { name: col.name, color: col.color, wip_limit: col.wip_limit, closed: col.closed };
 		Object.assign(col, data);
 		try {
 			await pb.collection('board_columns').update(id, data);

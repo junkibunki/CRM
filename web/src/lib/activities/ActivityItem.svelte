@@ -18,8 +18,15 @@
 	import ImageOffIcon from '@lucide/svelte/icons/image-off';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import ListPlusIcon from '@lucide/svelte/icons/list-plus';
+	import ListTodoIcon from '@lucide/svelte/icons/list-todo';
 	import { contactLabel, userLabel } from '#lib/collection.svelte.js';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import { clock } from '#lib/todos/clock.svelte.js';
+	import { formatDue, titleFromText } from '#lib/todos/due.js';
+	import { useLeadTodos, type LeadTodoStore } from '#lib/todos/lead.svelte.js';
+	import TodoForm from '#lib/todos/TodoForm.svelte';
+	import { MAX_TITLE } from '#lib/todos/types.js';
 	import Attachment from './Attachment.svelte';
 	import { formatTime } from './format';
 	import { sanitizeHtml } from './sanitize';
@@ -36,6 +43,34 @@
 	let expanded = $state(false);
 	let showImages = $state(false);
 
+	// F7: to-dos made from this note (shared store of the lead: one subscription for all notes)
+	const canMakeTodo = $derived(activity.type === 'note' || activity.type === 'meeting');
+	let todos = $state<LeadTodoStore | null>(null);
+	$effect(() => {
+		const h = useLeadTodos(activity.lead);
+		todos = h.store;
+		return h.release;
+	});
+	const fromHere = $derived(todos?.fromActivity(activity.id) ?? []);
+	let bodyEl = $state<HTMLElement | null>(null);
+	let todoOpen = $state(false);
+	let todoTitle = $state('');
+	let selected = '';
+
+	// read on pointerdown: the selection is still there before the click moves focus
+	function rememberSelection() {
+		const sel = window.getSelection();
+		const inBody =
+			sel && sel.rangeCount > 0 && !sel.isCollapsed && bodyEl?.contains(sel.getRangeAt(0).commonAncestorContainer);
+		selected = inBody ? sel.toString() : '';
+	}
+
+	function makeTodo() {
+		todoTitle = titleFromText(selected, MAX_TITLE) || activity.subject.trim().slice(0, MAX_TITLE);
+		selected = '';
+		todoOpen = true;
+	}
+
 	// sanitised on every display, never stored: the stored HTML may come from anywhere
 	const clean = $derived(sanitizeHtml(activity.body, { allowImages: showImages }));
 	const style = $derived(TYPE_STYLE[activity.type] ?? TYPE_STYLE.note);
@@ -43,7 +78,11 @@
 	const collapsed = $derived(clean.long && !expanded);
 </script>
 
-<article class="activity-item group flex gap-3 py-3" aria-label="{typeLabel(activity.type)}: {activity.subject}">
+<article
+	id="activity-{activity.id}"
+	class="activity-item group flex gap-3 rounded-md py-3 transition-shadow"
+	aria-label="{typeLabel(activity.type)}: {activity.subject}"
+>
 	<span class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full {style.tone}" title={typeLabel(activity.type)}>
 		<style.icon class="size-4" />
 	</span>
@@ -58,6 +97,19 @@
 				<time datetime={activity.occurred_at.replace(' ', 'T')}>{formatTime(activity.occurred_at)}</time>
 				· {userLabel(activity.author) || 'Unbekannt'}
 				<span class="flex opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+					{#if canMakeTodo}
+						<Button
+							variant="ghost"
+							size="icon-xs"
+							aria-label="To-Do daraus anlegen"
+							title="To-Do daraus anlegen (markierter Text wird der Titel)"
+							disabled={!todos}
+							onpointerdown={rememberSelection}
+							onclick={makeTodo}
+						>
+							<ListPlusIcon />
+						</Button>
+					{/if}
 					<Button variant="ghost" size="icon-xs" aria-label="Aktivität bearbeiten" title="Bearbeiten" onclick={() => onedit(activity)}>
 						<PencilIcon />
 					</Button>
@@ -73,7 +125,7 @@
 		{/if}
 
 		<div class="relative mt-1">
-			<div class="activity-html text-sm {collapsed ? 'max-h-32 overflow-hidden' : ''}">
+			<div bind:this={bodyEl} class="activity-html text-sm {collapsed ? 'max-h-32 overflow-hidden' : ''}">
 				<!-- sanitizeHtml: allowlist of the editor's tags, no scripts/handlers/external images -->
 				{@html clean.html}
 			</div>
@@ -102,8 +154,31 @@
 				{/each}
 			</ul>
 		{/if}
+
+		{#if fromHere.length}
+			<ul class="mt-2 flex flex-col gap-0.5 text-xs text-muted-foreground" aria-label="Daraus entstandene To-Dos">
+				{#each fromHere as t (t.id)}
+					<li class="flex min-w-0 items-center gap-1.5">
+						<ListTodoIcon class="size-3.5 shrink-0" />
+						<span class="sr-only">To-Do:</span>
+						<span class="min-w-0 truncate {t.done ? 'line-through' : ''}">{t.title}</span>
+						<span class="shrink-0">· {t.done ? 'erledigt' : formatDue(t, clock.now)}</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
 	</div>
 </article>
+
+{#if todoOpen && todos}
+	{@const store = todos}
+	<TodoForm
+		bind:open={todoOpen}
+		initialTitle={todoTitle}
+		description="Aus „{activity.subject || typeLabel(activity.type)}“"
+		save={(data) => store.create({ ...data, source_activity: activity.id })}
+	/>
+{/if}
 
 <style>
 	/* off-screen items skip layout and paint: a lead with 500 activities scrolls smoothly */

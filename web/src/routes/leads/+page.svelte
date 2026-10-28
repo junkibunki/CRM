@@ -9,6 +9,8 @@
 	import KanbanBoard from '#lib/kanban/KanbanBoard.svelte';
 	import { liveSync } from '#lib/live.js';
 	import { errorMessage, pb } from '#lib/pb.js';
+	import { LastActivityStore } from '#lib/last-activity/last.svelte.js';
+	import { PipelineTodoStore } from '#lib/todos/pipeline.svelte.js';
 	import type { Board } from '#lib/types.js';
 
 	// cards show company, contact and owner names, the lead dialog picks from them
@@ -17,6 +19,8 @@
 	$effect(() => users.use());
 
 	let store = $state<BoardStore | null>(null);
+	let todos = $state<PipelineTodoStore | null>(null);
+	let activity = $state<LastActivityStore | null>(null);
 	let error = $state('');
 	let settingsOpen = $state(false);
 	let attempt = $state(0); // bumped by "Erneut versuchen"
@@ -34,9 +38,16 @@
 					if (store?.id === board.id && !store.deleted) return;
 					teardown?.();
 					const s = new BoardStore(board.id);
+					// all open to-dos of the pipeline in one query (next to-do per card, F7)
+					const t = new PipelineTodoStore(board.id);
+					// latest activity per lead, also one query (F4)
+					const a = new LastActivityStore(board.id);
 					store = s;
+					todos = t;
+					activity = a;
 					error = '';
-					teardown = s.sync();
+					const stops = [s.sync(), t.sync(), a.sync()];
+					teardown = () => stops.forEach((stop) => stop());
 				},
 				onError: (err) => (error = errorMessage(err))
 			});
@@ -50,6 +61,8 @@
 	function retry() {
 		error = '';
 		store = null;
+		todos = null;
+		activity = null;
 		attempt++;
 	}
 </script>
@@ -71,11 +84,15 @@
 		{/if}
 	</div>
 
-	{#if error || store?.error}
+	{#if error || store?.error || todos?.error || activity?.error}
 		<div
 			class="mx-4 mt-2 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
 		>
-			<span class="flex-1">{error || store?.error}</span>
+			<span class="flex-1">
+				{error ||
+					store?.error ||
+					(todos?.error ? `To-Dos: ${todos.error}` : `Letzte Aktivitäten: ${activity?.error}`)}
+			</span>
 			<Button
 				variant="ghost"
 				size="icon-xs"
@@ -83,6 +100,8 @@
 				onclick={() => {
 					error = '';
 					store?.clearError();
+					todos?.clearError();
+					if (activity) activity.error = '';
 				}}
 			>
 				<XIcon />
@@ -99,7 +118,7 @@
 		<p class="p-4 text-sm text-muted-foreground">Lädt …</p>
 	{:else if store.board}
 		<div class="min-h-0 flex-1">
-			<KanbanBoard {store} />
+			<KanbanBoard {store} todos={todos ?? undefined} activity={activity ?? undefined} />
 		</div>
 	{/if}
 </div>

@@ -7,6 +7,8 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import type { BoardStore } from '#lib/board.svelte.js';
+	import type { LastActivityStore } from '#lib/last-activity/last.svelte.js';
+	import type { PipelineTodoStore } from '#lib/todos/pipeline.svelte.js';
 	import {
 		DEFAULT_CARD_FIELDS,
 		isCardData,
@@ -21,7 +23,14 @@
 	import LeadDialog from './LeadDialog.svelte';
 	import LeadPreview from './LeadPreview.svelte';
 
-	let { store }: { store: BoardStore } = $props();
+	type Props = {
+		store: BoardStore;
+		/** open to-dos of the pipeline (F7): next to-do per lead for cards and quick view */
+		todos?: PipelineTodoStore;
+		/** latest activity per lead (F4): quick view and the optional card field */
+		activity?: LastActivityStore;
+	};
+	let { store, todos, activity }: Props = $props();
 
 	// card_fields is a free JSON field: anything but an array would break every card
 	const fields = $derived(
@@ -97,9 +106,9 @@
 		toDelete = c;
 		deleteOpen = true;
 	}
-	function saveColumn(data: Partial<Pick<BoardColumn, 'name' | 'color' | 'wip_limit'>>) {
+	function saveColumn(data: Partial<Pick<BoardColumn, 'name' | 'color' | 'wip_limit' | 'closed'>>) {
 		if (column) store.updateColumn(column.id, data);
-		else store.addColumn({ name: '', color: 'gray', wip_limit: 0, ...data });
+		else store.addColumn({ name: '', color: 'gray', wip_limit: 0, closed: false, ...data });
 	}
 	function deleteColumn() {
 		deleteOpen = false;
@@ -113,6 +122,8 @@
 			{store}
 			column={col}
 			{fields}
+			{todos}
+			{activity}
 			onopencard={previewLead}
 			onadd={newLead}
 			onedit={editColumn}
@@ -124,7 +135,7 @@
 	</Button>
 </div>
 
-<LeadPreview {store} leadId={previewId} bind:open={previewOpen} onedit={openLead} />
+<LeadPreview {store} {todos} {activity} leadId={previewId} bind:open={previewOpen} onedit={openLead} />
 <LeadDialog {store} {lead} column={leadColumn} bind:open={leadOpen} />
 <ColumnDialog {column} bind:open={columnOpen} onsave={saveColumn} />
 
