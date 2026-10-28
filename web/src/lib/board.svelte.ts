@@ -1,49 +1,23 @@
-import { ClientResponseError, type RecordSubscription } from 'pocketbase';
-import { auth } from './auth.svelte';
-import { applyDelta, listDelta, same } from './diff';
+import { type RecordSubscription } from 'pocketbase';
+import { applyDelta, listDelta } from './diff';
 import { liveSync } from './live';
 import { gateFailure } from './gates/prompt.svelte';
 import type { CheckEntry } from './gates/types';
+import {
+	checkSession,
+	isGone,
+	MAX_RANK_LENGTH,
+	RankSaveError,
+	RealtimeMarks,
+	rollback,
+	saveRanks
+} from './optimistic';
 import { errorMessage, pb } from './pb';
 import { byRank, freshRanks, insertSorted, rankBetween } from './rank';
 import { type Board, type BoardColumn, type Lead, type LeadData } from './types';
 
-// Keys grow by about a character every few inserts at the same spot; well below the
-// schema's max of 100, re-rank the list instead of letting the save fail.
-const MAX_RANK_LENGTH = 50;
-
 const COLUMN_GONE = 'Die Phase wurde inzwischen gelöscht, die Änderungen sind nicht gespeichert.';
 const LEAD_GONE = 'Der Lead wurde inzwischen gelöscht, die Änderungen sind nicht gespeichert.';
-
-/**
- * The record no longer exists (deleted by someone else). A 404 can also mean our session
- * became invalid (PocketBase then answers as for a guest), so the session is checked
- * first; if it is invalid, auth.refresh() logs out and this is not treated as "gone".
- */
-async function isGone(err: unknown) {
-	if (!(err instanceof ClientResponseError && err.status === 404)) return false;
-	return auth.refresh();
-}
-
-/**
- * A failed create or re-rank may mean our session became invalid (PocketBase answers a guest with
- * 400/403/404): check it, so the user is sent to the login instead of seeing a generic error.
- */
-async function checkSession(err: unknown) {
-	if (err instanceof ClientResponseError && [400, 403, 404].includes(err.status)) {
-		await auth.refresh();
-	}
-}
-
-/**
- * Undoes a failed optimistic update: only fields that still hold our value. A field that
- * changed since (realtime event of someone else) keeps the newer value.
- */
-function rollback<T extends object>(target: T, prev: Partial<T>, ours: Partial<T>) {
-	for (const key of Object.keys(ours) as (keyof T)[]) {
-		if (same(target[key], ours[key])) target[key] = prev[key] as T[keyof T];
-	}
-}
 
 /**
  * State of one board. Columns and each column's leads are kept sorted by rank and only
@@ -57,6 +31,9 @@ export class BoardStore {
 	loading = $state(true);
 	deleted = $state(false);
 	error = $state('');
+	// realtime events per record (board, stages, leads): a failed write checks whether the
+	// server's state arrived meanwhile before it rolls back (see optimistic.ts)
+	private marks = new RealtimeMarks();
 
 	constructor(readonly id: string) {}
 
@@ -108,6 +85,7 @@ export class BoardStore {
 	 * in progress survives).
 	 */
 	private reconcile(board: Board, columns: BoardColumn[], leads: Lead[]) {
+		this.marks.note(board.id);
 		if (this.board) Object.assign(this.board, board);
 		else this.board = board;
 
@@ -129,12 +107,14 @@ export class BoardStore {
 	// --- realtime -------------------------------------------------------------------
 
 	private onBoard(e: RecordSubscription<Board>) {
+		this.marks.note(e.record.id);
 		if (e.action === 'delete') this.deleted = true;
 		else if (this.board) Object.assign(this.board, e.record);
 	}
 
 	private onColumn(e: RecordSubscription<BoardColumn>) {
 		const rec = e.record;
+		this.marks.note(rec.id);
 		const i = this.columns.findIndex((c) => c.id === rec.id);
 		if (e.action === 'delete') {
 			if (i !== -1) this.columns.splice(i, 1);
@@ -156,6 +136,7 @@ export class BoardStore {
 
 	private onLead(e: RecordSubscription<Lead>) {
 		const rec = e.record;
+		this.marks.note(rec.id);
 		const loc = this.findLead(rec.id);
 		if (e.action === 'delete') {
 			if (loc) this.leads[loc.column].splice(loc.index, 1);
@@ -216,26 +197,32 @@ export class BoardStore {
 		const between = () => rankBetween(items[index - 1]?.rank ?? null, items[index]?.rank ?? null);
 		const rank = between();
 		if (rank !== null && rank.length <= MAX_RANK_LENGTH) return rank;
-		// colliding neighbours or keys grown too long: give the whole list fresh keys
+		// colliding neighbours or keys grown too long: give the whole list fresh keys, in one
+		// batch transaction (all or nothing), so others never see a half re-ranked list
 		const keys = freshRanks(items.length);
 		const prev = items.map((item) => item.rank);
-		const results = await Promise.allSettled(
-			items.map((item, i) => {
-				item.rank = keys[i];
-				return pb.collection(collection).update(item.id, { rank: keys[i] });
-			})
-		);
+		items.forEach((item, i) => (item.rank = keys[i]));
+		// an event since then brought the server's rank; freshRanks is deterministic, so a value
+		// compare can't tell someone else's identical re-rank from ours
+		const marks = items.map((item) => this.marks.mark(item.id));
 		let failure: unknown = null;
-		items.forEach((item, i) => {
-			const r = results[i];
-			if (r.status === 'fulfilled') return;
-			failure ??= r.reason;
-			// the server kept the old key; mirror it unless realtime moved it meanwhile
-			if (item.rank === keys[i]) item.rank = prev[i];
-		});
+		try {
+			await saveRanks(
+				collection,
+				items.map((item, i) => ({ id: item.id, rank: keys[i] }))
+			);
+		} catch (err) {
+			const saved = err instanceof RankSaveError ? err.saved : 0;
+			failure = err instanceof RankSaveError ? err.error : err;
+			// the server kept the old keys (from `saved` on, see saveRanks); mirror them unless
+			// realtime moved an item meanwhile
+			items.forEach((item, i) => {
+				if (i >= saved && item.rank === keys[i] && !this.marks.since(item.id, marks[i])) item.rank = prev[i];
+			});
+		}
 		// Every item now holds the rank the server has (the moved one was never changed), but
-		// the live list(s) are out of order: the item being moved still sits at its old place,
-		// and after a partial failure old and fresh keys are mixed. Sort them as the server does.
+		// the live list(s) are out of order: the item being moved still sits at its old place
+		// (and a list longer than one batch may mix old and fresh keys). Sort as the server does.
 		this.sortLive(collection, items);
 		if (failure !== null) throw failure;
 		return between()!;
@@ -261,6 +248,7 @@ export class BoardStore {
 		if (!this.board) return;
 		const prev = { name: this.board.name, card_fields: this.board.card_fields };
 		Object.assign(this.board, data);
+		const mark = this.marks.mark(this.id);
 		try {
 			await pb.collection('boards').update(this.id, data);
 		} catch (err) {
@@ -268,7 +256,7 @@ export class BoardStore {
 				this.deleted = true;
 				return;
 			}
-			rollback(this.board, prev, data);
+			rollback(this.board, prev, data, this.marks.since(this.id, mark));
 			this.fail(err);
 		}
 	}
@@ -305,6 +293,7 @@ export class BoardStore {
 		}
 		const prev = { name: col.name, color: col.color, wip_limit: col.wip_limit, closed: col.closed, gates_exempt: col.gates_exempt };
 		Object.assign(col, data);
+		const mark = this.marks.mark(id);
 		try {
 			await pb.collection('board_columns').update(id, data);
 		} catch (err) {
@@ -313,7 +302,7 @@ export class BoardStore {
 				this.error = COLUMN_GONE;
 				return;
 			}
-			rollback(col, prev, data);
+			rollback(col, prev, data, this.marks.since(id, mark));
 			this.fail(err);
 		}
 	}
@@ -351,13 +340,14 @@ export class BoardStore {
 		this.columns.splice(i, 1);
 		col.rank = rank;
 		insertSorted(this.columns, col);
+		const mark = this.marks.mark(id);
 		try {
 			await pb.collection('board_columns').update(id, { rank });
 		} catch (err) {
 			if (await isGone(err)) return this.removeColumn(id);
-			// roll back only if nobody else has moved it in the meantime
+			// roll back only if nobody else has moved it in the meantime (also to the same place)
 			const j = this.columns.indexOf(col);
-			if (j !== -1 && col.rank === rank) {
+			if (j !== -1 && col.rank === rank && !this.marks.since(id, mark)) {
 				this.columns.splice(j, 1);
 				col.rank = prevRank;
 				insertSorted(this.columns, col);
@@ -421,6 +411,7 @@ export class BoardStore {
 		if (!Object.keys(body).length) return;
 		const prev = Object.fromEntries(Object.keys(ours).map((k) => [k, lead[k]])) as Partial<LeadData>;
 		Object.assign(lead, ours);
+		const mark = this.marks.mark(id);
 		try {
 			// the response is deliberately not applied: the optimistic state already holds our
 			// values, and a newer edit by someone else may have arrived by realtime before it.
@@ -432,7 +423,7 @@ export class BoardStore {
 				this.error = LEAD_GONE;
 				return;
 			}
-			rollback(lead, prev, ours);
+			rollback(lead, prev, ours, this.marks.since(id, mark));
 			this.fail(err);
 		}
 	}
@@ -476,14 +467,15 @@ export class BoardStore {
 		lead.column = toColumn;
 		lead.rank = rank;
 		insertSorted(dest, lead);
+		const mark = this.marks.mark(id);
 		try {
 			await pb.collection('leads').update(id, { column: toColumn, rank });
 		} catch (err) {
 			if (await isGone(err)) return this.removeLead(id);
-			// roll back only if nobody else has moved it in the meantime
+			// roll back only if nobody else has moved it in the meantime (also to the same place)
 			const cur = this.findLead(id);
 			const back = this.leads[prev.column];
-			if (cur && back && lead.column === toColumn && lead.rank === rank) {
+			if (cur && back && lead.column === toColumn && lead.rank === rank && !this.marks.since(id, mark)) {
 				this.leads[cur.column].splice(cur.index, 1);
 				lead.column = prev.column;
 				lead.rank = prev.rank;

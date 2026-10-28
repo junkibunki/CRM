@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { BoardStore } from '#lib/board.svelte.js';
@@ -7,6 +9,7 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import BoardSettingsDialog from '#lib/kanban/BoardSettingsDialog.svelte';
 	import KanbanBoard from '#lib/kanban/KanbanBoard.svelte';
+	import { leadFromQuery } from '#lib/kanban/preview.js';
 	import { liveSync } from '#lib/live.js';
 	import { errorMessage, pb } from '#lib/pb.js';
 	import { LastActivityStore } from '#lib/last-activity/last.svelte.js';
@@ -62,6 +65,13 @@
 			teardown?.();
 		};
 	});
+
+	// `/leads?lead=<id>` opens that lead's quick view ("Meine To-Dos" links here); closing it
+	// drops the parameter, so a reload or "back" doesn't open it again
+	const previewLead = $derived(leadFromQuery(page.url.searchParams));
+	function closePreview() {
+		if (page.url.searchParams.has('lead')) goto('/leads', { replace: true, reset: false });
+	}
 
 	function retry() {
 		error = '';
@@ -134,6 +144,8 @@
 				todos={todos ?? undefined}
 				activity={activity ?? undefined}
 				gates={gates ?? undefined}
+				{previewLead}
+				onpreviewclose={closePreview}
 			/>
 		</div>
 	{/if}

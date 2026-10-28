@@ -80,3 +80,11 @@
 	background: var(--muted);
 	font-weight: 600;
 }
+/* editor only (TipTap renders into .ProseMirror): fixed columns, so empty cells stay wide enough
+   to find and type into, and the cell selection is visible */
+.activity-html.ProseMirror table {
+	table-layout: fixed;
+}
+.activity-html .selectedCell {
+	background: color-mix(in oklab, var(--primary) 10%, transparent);
+}

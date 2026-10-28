@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { contacts, users } from '#lib/collection.svelte.js';
@@ -9,6 +9,7 @@
 	import ActivityForm from './ActivityForm.svelte';
 	import ActivityItem from './ActivityItem.svelte';
 	import { groupByDay, watchDay } from './format';
+	import { filterShowing, onRevealActivity } from './reveal';
 	import { ACTIVITY_FILTERS, typeLabel, type Activity, type ActivityFilter } from './types';
 
 	/** Interface for the lead page (F2): all activities of one lead, live. */
@@ -34,6 +35,24 @@
 	// "Heute"/"Gestern" must flip at midnight: regroup when the local day changes
 	let today = $state(new Date());
 	$effect(() => watchDay((now) => (today = now)));
+
+	// "aus Notiz vom …" of a to-do: show that note, also when the filter hides it
+	$effect(() =>
+		onRevealActivity((id) => {
+			const a = store?.get(id);
+			if (!a) return false;
+			filter = filterShowing(a, filter);
+			tick().then(() => highlight(id));
+			return true;
+		})
+	);
+	function highlight(id: string) {
+		const el = document.getElementById(`activity-${id}`);
+		if (!el) return;
+		el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		el.classList.add('ring-2', 'ring-ring');
+		setTimeout(() => el.classList.remove('ring-2', 'ring-ring'), 1500);
+	}
 
 	const visible = $derived(store ? store.visible(filter) : []);
 	const groups = $derived(groupByDay(visible, today));

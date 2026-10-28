@@ -1,11 +1,12 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
 	import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 	import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element';
 	import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import * as Dialog from '#lib/components/dialog/index.js';
 	import type { BoardStore } from '#lib/board.svelte.js';
 	import GateDialog from '#lib/gates/GateDialog.svelte';
 	import type { GateStore } from '#lib/gates/gates.svelte.js';
@@ -35,8 +36,12 @@
 		activity?: LastActivityStore;
 		/** stage requirements and checks of the pipeline (F12): gate dialog, lock, card warning */
 		gates?: GateStore;
+		/** lead whose quick view opens (`/leads?lead=<id>`, e.g. from "Meine To-Dos") */
+		previewLead?: string | null;
+		/** the quick view opened through `previewLead` was closed (the page drops the parameter) */
+		onpreviewclose?: () => void;
 	};
-	let { store, todos, activity, gates }: Props = $props();
+	let { store, todos, activity, gates, previewLead = null, onpreviewclose }: Props = $props();
 
 	// the gate dialog ("Bevor ‚<Lead>' nach ‚<Phase>' kann") of a move
 	const prompt = new GatePrompt();
@@ -99,10 +104,28 @@
 	let toDelete = $state<BoardColumn | null>(null);
 
 	// a click on a card opens the quick view; "Bearbeiten" there opens the lead dialog
-	function previewLead(l: Lead) {
+	function showPreview(l: Lead) {
 		previewId = l.id;
 		previewOpen = true;
 	}
+
+	// quick view requested by the URL: opens when the parameter appears; closing it tells the
+	// page (plain variable: it only remembers that this opening came from the URL)
+	let fromUrl = false;
+	$effect(() => {
+		const id = previewLead;
+		if (!id) return;
+		untrack(() => {
+			previewId = id;
+			previewOpen = true;
+			fromUrl = true;
+		});
+	});
+	$effect(() => {
+		if (previewOpen || !fromUrl) return;
+		fromUrl = false;
+		untrack(() => onpreviewclose?.());
+	});
 	function openLead(l: Lead) {
 		lead = l;
 		leadColumn = null;
@@ -153,7 +176,7 @@
 			{todos}
 			{activity}
 			{gates}
-			onopencard={previewLead}
+			onopencard={showPreview}
 			onadd={newLead}
 			onedit={editColumn}
 			ondelete={askDeleteColumn}
@@ -164,7 +187,7 @@
 	</Button>
 </div>
 
-<LeadPreview {store} {todos} {activity} leadId={previewId} bind:open={previewOpen} onedit={openLead} />
+<LeadPreview {store} {todos} {activity} {gates} leadId={previewId} bind:open={previewOpen} onedit={openLead} />
 <LeadDialog {store} {gates} columns={store.columns} {lead} column={leadColumn} bind:open={leadOpen} />
 <ColumnDialog {column} requirements={columnRequirements} bind:open={columnOpen} onsave={saveColumn} />
 <GateDialog {prompt} />

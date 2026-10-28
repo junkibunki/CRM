@@ -253,6 +253,16 @@ export function umlautVariant(name: string): string {
 	});
 }
 
+/**
+ * The address the contact dialog makes suggestions from: always for a new contact; when
+ * editing only once the address was changed — an existing contact's empty fields were left
+ * empty on purpose (or are being filled by hand), so its old address suggests nothing.
+ */
+export function emailToSuggest(email: string, initialEmail: string, editing: boolean): string {
+	if (editing && email.trim().toLowerCase() === initialEmail.trim().toLowerCase()) return '';
+	return email;
+}
+
 export type Chip = { label: string; value: string };
 
 export type VisibleSuggestions = {

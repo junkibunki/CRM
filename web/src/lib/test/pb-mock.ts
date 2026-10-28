@@ -20,7 +20,9 @@ type Method =
 	| 'update'
 	| 'delete'
 	| 'subscribe'
-	| 'authRefresh';
+	| 'authRefresh'
+	/** pb.createBatch().send(); hold/fail it on the collection name 'batch' */
+	| 'batch';
 
 export function apiError(status: number, message = 'error', data: Record<string, unknown> = {}) {
 	return new ClientResponseError({ status, response: { status, message, data } });
@@ -139,8 +141,37 @@ export function createPbMock() {
 		}
 	};
 
+	/** batch API (only `update` is used): all requests in one transaction, all or nothing */
+	function createBatch() {
+		const requests: { collection: string; id: string; data: Record<string, unknown> }[] = [];
+		return {
+			collection(name: string) {
+				return {
+					update(id: string, data: Record<string, unknown>) {
+						requests.push({ collection: name, id, data: clone(data) });
+					}
+				};
+			},
+			async send() {
+				await enter('batch', 'batch', [clone(requests)]);
+				const missing = requests.findIndex((r) => !(db[r.collection] ?? []).some((x) => x.id === r.id));
+				if (missing !== -1) {
+					throw apiError(400, 'Batch transaction failed.', {
+						requests: { [missing]: { code: 'batch_request_failed', message: 'Batch request failed.' } }
+					});
+				}
+				return requests.map((r) => {
+					const rec = (db[r.collection] ?? []).find((x) => x.id === r.id)!;
+					Object.assign(rec, clone(r.data), { updated: stamp() });
+					return { status: 200, body: clone(rec) };
+				});
+			}
+		};
+	}
+
 	const pb = {
 		collection,
+		createBatch,
 		authStore,
 		filter: (raw: string, params: Record<string, unknown> = {}) =>
 			raw.replace(/\{:(\w+)\}/g, (_, k) => JSON.stringify(params[k])),

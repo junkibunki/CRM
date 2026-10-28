@@ -1,7 +1,7 @@
 import { ClientResponseError, type RecordSubscription } from 'pocketbase';
 import { SvelteMap } from 'svelte/reactivity';
-import { auth } from '../auth.svelte';
 import { liveSync } from '../live';
+import { checkSession, isGone } from '../optimistic';
 import { errorMessage, pb } from '../pb';
 import { byRank, insertSorted } from '../rank';
 import type { BoardColumn } from '../types';
@@ -26,14 +26,6 @@ type Scope = {
 };
 
 const CHECK_FIELDS = 'id,lead,requirement,value,by,created,updated';
-
-/**
- * A failed write may mean our session became invalid (PocketBase answers a guest with
- * 400/403/404): check it, so the user gets the login instead of a puzzling error.
- */
-async function checkSession(err: unknown) {
-	if (err instanceof ClientResponseError && [400, 403, 404].includes(err.status)) await auth.refresh();
-}
 
 /**
  * Stage requirements and the checks of leads (F12), live. ONE query for the requirements and
@@ -294,7 +286,7 @@ export class GateStore {
 		} catch (err) {
 			// 404 with a valid session: already taken back by someone else, what we wanted
 			// (an invalid session also answers 404; refresh() then logs out)
-			const gone = err instanceof ClientResponseError && err.status === 404 && (await auth.refresh());
+			const gone = await isGone(err);
 			if (!gone) {
 				await checkSession(err);
 				throw err;

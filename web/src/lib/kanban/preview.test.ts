@@ -13,8 +13,9 @@ import type { BoardColumn, Lead } from '../types';
 import {
 	formatCreated,
 	formatDay,
-	localDate,
+	leadFromQuery,
 	locateLead,
+	previewHref,
 	previewData,
 	previewStatus,
 	type PreviewLookups
@@ -141,6 +142,20 @@ describe('previewData', () => {
 		expect(previewData(board, 'l1', lookups, '2026-10-28')!.lastActivity).toBeUndefined();
 	});
 
+	it('shows the open requirements of the stage the lead sits in, like the card (F12)', () => {
+		const board = { columns, leads: { c2: [lead('l1', 'c2', 'a0')] } };
+		const asked: string[][] = [];
+		const gateOpen = (leadId: string, columnId: string) => {
+			asked.push([leadId, columnId]);
+			return ['Bei Siemens geflaggt'];
+		};
+		expect(previewData(board, 'l1', { ...lookups, gateOpen }, '2026-10-28')!.gateOpen).toEqual([
+			'Bei Siemens geflaggt'
+		]);
+		expect(asked).toEqual([['l1', 'c2']]); // the list it sits in, not its column field
+		expect(previewData(board, 'l1', lookups, '2026-10-28')!.gateOpen).toEqual([]);
+	});
+
 	it('knows whether the stage is closed (no "Kein nächster Schritt" there)', () => {
 		const won = { ...col('c3', 'Gewonnen', 'green', 'a2'), closed: true };
 		const at = (c: string) =>
@@ -167,9 +182,18 @@ describe('helpers', () => {
 		expect(locateLead({ c1: [] }, 'l2')).toBeNull();
 	});
 
-	it('localDate uses local time, not UTC', () => {
-		expect(localDate(new Date(2026, 0, 5, 0, 30))).toBe('2026-01-05');
-		expect(localDate(new Date(2026, 11, 31, 23, 59))).toBe('2026-12-31');
+	it('leadFromQuery takes a record id from ?lead= and ignores anything else', () => {
+		const p = (s: string) => new URLSearchParams(s);
+		expect(leadFromQuery(p('lead=abcdefghij12345'))).toBe('abcdefghij12345');
+		expect(leadFromQuery(p(''))).toBeNull();
+		expect(leadFromQuery(p('lead='))).toBeNull();
+		expect(leadFromQuery(p('lead=../x'))).toBeNull();
+		expect(leadFromQuery(p('lead=ABCDEFGHIJ12345'))).toBeNull();
+		expect(leadFromQuery(p('lead=abc'))).toBeNull();
+		// round trip with the link "Meine To-Dos" uses
+		const href = previewHref('abcdefghij12345');
+		expect(href).toBe('/leads?lead=abcdefghij12345');
+		expect(leadFromQuery(new URL(href, 'http://x').searchParams)).toBe('abcdefghij12345');
 	});
 
 	it('formats dates in German', () => {

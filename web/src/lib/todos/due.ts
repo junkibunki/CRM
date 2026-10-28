@@ -77,6 +77,21 @@ export function fromDueInput(date: string, time: string): Due | null {
 	return { due: d.toISOString().replace('T', ' '), due_has_time: true };
 }
 
+/**
+ * A time that doesn't exist on that day: the clocks jump from 02:00 to 03:00 when summer time
+ * starts, so `new Date` (and fromDueInput) silently moves 02:30 to 03:30. Returns a hint for the
+ * form naming the time that will be saved, '' for every other (or incomplete/invalid) input.
+ */
+export function dueGapNote(date: string, time: string): string {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return '';
+	const d = new Date(`${date}T${time}`);
+	if (Number.isNaN(d.getTime())) return '';
+	const saved = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+	if (localDay(d) === date && saved === time) return '';
+	const [y, m, day] = date.split('-').map(Number);
+	return `${time} Uhr gibt es am ${dayFormat.format(new Date(y, m - 1, day))} wegen der Zeitumstellung nicht – gespeichert wird ${saved} Uhr.`;
+}
+
 /** Stored fields -> form values (local date and, if any, local time HH:MM). */
 export function toDueInput(t: Due): { date: string; time: string } {
 	if (!t.due) return { date: '', time: '' };
@@ -122,6 +137,14 @@ export function formatDue(t: Due, now: Date): string {
 	const label =
 		diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : diff === -1 ? 'Gestern' : dayFormat.format(new Date(y, m - 1, d));
 	return t.due_has_time ? `${label}, ${timeFormat.format(parse(t.due))}` : label;
+}
+
+/** When a to-do was ticked off: "erledigt heute", "erledigt gestern" or "erledigt am 02.11.26". */
+export function formatDone(doneAt: string, now: Date): string {
+	const d = doneAt ? parse(doneAt) : null;
+	if (!d || Number.isNaN(d.getTime())) return 'erledigt';
+	const diff = daysFrom(localDay(d), now);
+	return diff === 0 ? 'erledigt heute' : diff === -1 ? 'erledigt gestern' : `erledigt am ${dayFormat.format(d)}`;
 }
 
 /** Text for a to-do's title made from selected text: one line, at most `max` characters. */

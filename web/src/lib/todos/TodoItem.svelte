@@ -14,7 +14,8 @@
 	import { cn } from '#lib/utils.js';
 	import { typeLabel } from '#lib/activities/types.js';
 	import { clock } from './clock.svelte';
-	import { dueStatus, formatDue, fromDueInput, toDueInput } from './due';
+	import { revealActivity } from '#lib/activities/reveal.js';
+	import { dueGapNote, dueStatus, formatDone, formatDue, fromDueInput, toDueInput } from './due';
 	import type { LeadTodoStore } from './lead.svelte';
 	import { DUE_TEXT, DUE_TONE } from './NextTodoBadge.svelte';
 	import { MAX_TITLE, type Todo } from './types';
@@ -34,6 +35,7 @@
 	let titleInput = $state<HTMLInputElement | null>(null);
 	let dateInput = $state<HTMLInputElement | null>(null);
 	let initial = { title: '', due: '', due_has_time: false };
+	const gapNote = $derived(editing === 'due' ? dueGapNote(date, time) : '');
 
 	async function edit(what: 'title' | 'due') {
 		initial = { title: todo.title, due: todo.due, due_has_time: todo.due_has_time };
@@ -84,14 +86,10 @@
 		}
 	}
 
-	// the note lives in the timeline on the same page
+	// the note lives in the timeline on the same page; the timeline resets a filter that hides
+	// it, then scrolls to it (activities/reveal.ts). Without a timeline the hash link stays.
 	function showSource(e: MouseEvent) {
-		const el = document.getElementById(`activity-${todo.source_activity}`);
-		if (!el) return; // filtered out of the timeline: let the hash change do nothing harmful
-		e.preventDefault();
-		el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-		el.classList.add('ring-2', 'ring-ring');
-		setTimeout(() => el.classList.remove('ring-2', 'ring-ring'), 1500);
+		if (todo.source_activity && revealActivity(todo.source_activity)) e.preventDefault();
 	}
 </script>
 
@@ -155,6 +153,9 @@
 				>
 					<XIcon />
 				</Button>
+				{#if gapNote}
+					<p class="w-full text-xs text-amber-700 dark:text-amber-400" role="status">{gapNote}</p>
+				{/if}
 			</form>
 		{:else}
 			<div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
@@ -168,7 +169,7 @@
 					{due}
 				</button>
 				{#if todo.done && todo.done_at}
-					<span>erledigt</span>
+					<span>{formatDone(todo.done_at, clock.now)}</span>
 				{/if}
 				{#if source}
 					<a

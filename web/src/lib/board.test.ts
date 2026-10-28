@@ -311,19 +311,39 @@ describe('BoardStore: invalid session on create', () => {
 	});
 });
 
-describe('BoardStore: re-ranking with a failed update', () => {
-	it('keeps local ranks equal to the server when one of the re-rank updates fails', async () => {
+describe('BoardStore: re-ranking (one batch transaction)', () => {
+	const batches = () => mock.calls.filter((c) => c.method === 'batch');
+	type Req = { collection: string; id: string; data: { rank: string } };
+
+	it('gives the whole target list fresh ranks in ONE batch, then moves with one update', async () => {
 		mock.set('leads', [lead('x1', 'c2', 'b0'), lead('x2', 'c2', 'b0'), lead('x3', 'c2', 'b0'), lead('m', 'c1', 'a5')]);
 		mock.reconnect();
 		await flush();
-		mock.fail('update', apiError(500, 'boom'), 'leads'); // the first re-rank update (x1)
+		mock.calls.length = 0;
+		await store.moveLead('m', 'c2', 1);
+		expect(store.error).toBe('');
+		expect(batches()).toHaveLength(1);
+		const reqs = batches()[0].args[0] as Req[];
+		expect(reqs.map((r) => r.id)).toEqual(['x1', 'x2', 'x3']);
+		// no single re-rank updates: only the move itself
+		expect(updates().map((u) => u.args[0])).toEqual(['m']);
+		expect(titles('c2')).toEqual(['x1', 'm', 'x2', 'x3']);
+		const server = new Map(mock.db.leads!.map((l) => [l.id, l.rank]));
+		for (const l of store.leads.c2!) expect(l.rank).toBe(server.get(l.id));
+		stop();
+	});
+
+	it('a failed batch leaves every rank as it was (nothing half re-ranked) and no move happens', async () => {
+		mock.set('leads', [lead('x1', 'c2', 'b0'), lead('x2', 'c2', 'b0'), lead('x3', 'c2', 'b0'), lead('m', 'c1', 'a5')]);
+		mock.reconnect();
+		await flush();
+		mock.fail('batch', apiError(500, 'boom'));
 		await store.moveLead('m', 'c2', 1);
 		expect(store.error).not.toBe('');
 		expect(titles('c1')).toEqual(['m']); // the move itself did not happen
-		const server = new Map(mock.db.leads!.map((l) => [l.id, l.rank]));
-		for (const l of store.leads.c2!) expect(l.rank).toBe(server.get(l.id));
-		const ranks = store.leads.c2!.map((l) => l.rank);
-		expect([...ranks].sort()).toEqual(ranks); // still in rank order
+		expect(mock.db.leads!.filter((l) => l.column === 'c2').map((l) => l.rank)).toEqual(['b0', 'b0', 'b0']);
+		for (const l of store.leads.c2!) expect(l.rank).toBe('b0');
+		expect(titles('c2')).toEqual(['x1', 'x2', 'x3']);
 		stop();
 	});
 
@@ -345,41 +365,52 @@ describe('BoardStore: re-ranking with a failed update', () => {
 		mock.calls.length = 0;
 	}
 
-	it('stages: local order equals the server order after a partly failed re-rank', async () => {
+	it('stages: a failed batch keeps the old order and ranks', async () => {
 		const col = (id: string, rank: string) => ({ id, board: 'b1', name: id, rank, updated: stamp() });
 		await restart([col('cA', 'a0'), col('cB', 'a0'), col('cC', 'a0'), col('cD', 'a1')], []);
-		mock.fail('update', apiError(500, 'boom'), 'board_columns'); // re-rank of A fails
+		mock.fail('batch', apiError(500, 'boom'));
 		await store.moveColumn('cD', 1); // between A and B (equal ranks)
 		expect(store.error).not.toBe('');
 		const server = new Map(mock.db.board_columns!.map((c) => [c.id, c.rank]));
 		for (const c of store.columns) expect(c.rank).toBe(server.get(c.id));
 		expect(store.columns.map((c) => c.id)).toEqual(serverOrder('board_columns', () => true));
-		expect(store.columns.map((c) => c.id)).toEqual(['cA', 'cB', 'cD', 'cC']);
+		expect(store.columns.map((c) => c.id)).toEqual(['cA', 'cB', 'cC', 'cD']);
 		stop();
 	});
 
-	it('lead moved within its stage: local order equals the server order after a partly failed re-rank', async () => {
+	it('stages: a successful batch re-ranks and moves', async () => {
+		const col = (id: string, rank: string) => ({ id, board: 'b1', name: id, rank, updated: stamp() });
+		await restart([col('cA', 'a0'), col('cB', 'a0'), col('cC', 'a0'), col('cD', 'a1')], []);
+		await store.moveColumn('cD', 1);
+		expect(store.error).toBe('');
+		expect(batches()).toHaveLength(1);
+		expect(store.columns.map((c) => c.id)).toEqual(['cA', 'cD', 'cB', 'cC']);
+		expect(store.columns.map((c) => c.id)).toEqual(serverOrder('board_columns', () => true));
+		stop();
+	});
+
+	it('lead moved within its stage: local order equals the server order after a failed batch', async () => {
 		await restart(
 			[{ id: 'c1', board: 'b1', name: 'Neu', rank: 'a0', updated: stamp() }],
 			[lead('x1', 'c1', 'a0'), lead('x2', 'c1', 'a0'), lead('x3', 'c1', 'a0'), lead('xm', 'c1', 'a1')]
 		);
-		mock.fail('update', apiError(500, 'boom'), 'leads'); // re-rank of x1 fails
+		mock.fail('batch', apiError(500, 'boom'));
 		await store.moveLead('xm', 'c1', 1);
 		expect(store.error).not.toBe('');
 		const server = new Map(mock.db.leads!.map((l) => [l.id, l.rank]));
 		for (const l of store.leads.c1!) expect(l.rank).toBe(server.get(l.id));
 		expect(titles('c1')).toEqual(serverOrder('leads', (l) => l.column === 'c1'));
-		expect(titles('c1')).toEqual(['x1', 'x2', 'xm', 'x3']);
+		expect(titles('c1')).toEqual(['x1', 'x2', 'x3', 'xm']);
 		stop();
 	});
 
-	it('matches re-rank results to the right items when realtime inserts into the live list meanwhile', async () => {
+	it('matches the batch to the right items when realtime inserts into the live list meanwhile', async () => {
 		await restart(
 			[{ id: 'c1', board: 'b1', name: 'Neu', rank: 'a0', updated: stamp() }],
 			[lead('x1', 'c1', 'b0'), lead('x2', 'c1', 'b0')]
 		);
-		const release = mock.hold('leads', 'update'); // x1's re-rank update waits
-		mock.fail('update', apiError(500, 'boom'), 'leads'); // x2's fails
+		const release = mock.hold('batch', 'batch');
+		mock.fail('batch', apiError(500, 'boom'));
 		// called with the live list, as addLead/addColumn do; position 1 collides
 		const rankAt = (store as unknown as { rankAt: (l: unknown[], i: number, c: string) => Promise<string> })
 			.rankAt.bind(store);
@@ -396,14 +427,115 @@ describe('BoardStore: re-ranking with a failed update', () => {
 		stop();
 	});
 
-	it('checks the session when a re-rank update fails with a guest answer', async () => {
+	it('checks the session when the re-rank batch fails with a guest answer', async () => {
 		mock.set('leads', [lead('x1', 'c2', 'b0'), lead('x2', 'c2', 'b0'), lead('m', 'c1', 'a5')]);
 		mock.reconnect();
 		await flush();
-		mock.fail('update', apiError(404, 'guest'), 'leads');
+		mock.fail('batch', apiError(400, 'Batch transaction failed.'));
 		mock.invalidateSession();
 		await store.moveLead('m', 'c2', 1);
 		expect(mock.pb.authStore.token).toBe(''); // logged out
+		stop();
+	});
+});
+
+describe('BoardStore: rollback when someone else saved the same value', () => {
+	it('lead: keeps the value when B saved exactly ours while our save failed', async () => {
+		const release = mock.hold('leads', 'update');
+		mock.fail('update', apiError(500, 'boom'), 'leads');
+		const pending = store.updateLead('l1', { title: 'Gleich' });
+		await flush();
+		mock.emit('leads', 'update', lead('l1', 'c1', 'a0', { title: 'Gleich' }));
+		release();
+		await pending;
+		expect(store.leads.c1![0].title).toBe('Gleich'); // the server has it (B's save)
+		stop();
+	});
+
+	it('lead: still rolls back when nothing arrived meanwhile', async () => {
+		mock.fail('update', apiError(500, 'boom'), 'leads');
+		await store.updateLead('l1', { title: 'Meins' });
+		expect(store.leads.c1![0].title).toBe('l1');
+		stop();
+	});
+
+	it('stage: keeps the value when B saved exactly ours while our save failed', async () => {
+		const release = mock.hold('board_columns', 'update');
+		mock.fail('update', apiError(500, 'boom'), 'board_columns');
+		const pending = store.updateColumn('c1', { name: 'Gleich' });
+		await flush();
+		mock.emit('board_columns', 'update', { id: 'c1', board: 'b1', name: 'Gleich', rank: 'a0' });
+		release();
+		await pending;
+		expect(store.columns.find((c) => c.id === 'c1')!.name).toBe('Gleich');
+		stop();
+	});
+
+	it('lead move: no rollback when B moved it to exactly the same place meanwhile', async () => {
+		const release = mock.hold('leads', 'update');
+		mock.fail('update', apiError(500, 'boom'), 'leads');
+		const pending = store.moveLead('l1', 'c2', 1);
+		await flush();
+		const ours = store.leads.c2!.find((l) => l.id === 'l1')!.rank;
+		mock.emit('leads', 'update', lead('l1', 'c2', ours));
+		release();
+		await pending;
+		expect(titles('c2')).toEqual(['l4', 'l1']); // where the server has it (B's move)
+		expect(titles('c1')).toEqual(['l2', 'l3']);
+		stop();
+	});
+
+	it('lead move: still rolls back when nothing arrived meanwhile', async () => {
+		mock.fail('update', apiError(500, 'boom'), 'leads');
+		await store.moveLead('l1', 'c2', 1);
+		expect(titles('c1')).toEqual(['l1', 'l2', 'l3']);
+		expect(titles('c2')).toEqual(['l4']);
+		stop();
+	});
+
+	it('stage move: no rollback when B moved it to exactly the same place meanwhile', async () => {
+		const release = mock.hold('board_columns', 'update');
+		mock.fail('update', apiError(500, 'boom'), 'board_columns');
+		const pending = store.moveColumn('c1', 1);
+		await flush();
+		const ours = store.columns.find((c) => c.id === 'c1')!.rank;
+		mock.emit('board_columns', 'update', { id: 'c1', board: 'b1', name: 'Neu', rank: ours });
+		release();
+		await pending;
+		expect(store.columns.map((c) => c.id)).toEqual(['c2', 'c1']);
+		stop();
+	});
+
+	it('re-rank: keeps fresh ranks B saved identically while our batch failed (freshRanks is deterministic)', async () => {
+		mock.set('leads', [lead('x1', 'c2', 'b0'), lead('x2', 'c2', 'b0'), lead('x3', 'c2', 'b0'), lead('m', 'c1', 'a5')]);
+		mock.reconnect();
+		await flush();
+		const release = mock.hold('batch', 'batch');
+		mock.fail('batch', apiError(500, 'boom'));
+		const pending = store.moveLead('m', 'c2', 1);
+		await flush();
+		const fresh = store.leads.c2!.map((l) => [l.id, l.rank] as const);
+		for (const [id, rank] of fresh) {
+			Object.assign(mock.db.leads!.find((l) => l.id === id)!, { rank });
+			mock.emit('leads', 'update', lead(id, 'c2', rank));
+		}
+		release();
+		await pending;
+		expect(store.leads.c2!.map((l) => [l.id, l.rank])).toEqual(fresh.map(([id, rank]) => [id, rank]));
+		const server = new Map(mock.db.leads!.map((l) => [l.id, l.rank]));
+		for (const l of store.leads.c2!) expect(l.rank).toBe(server.get(l.id));
+		stop();
+	});
+
+	it('pipeline: keeps the value when B saved exactly ours while our save failed', async () => {
+		const release = mock.hold('boards', 'update');
+		mock.fail('update', apiError(500, 'boom'), 'boards');
+		const pending = store.updateBoard({ name: 'Gleich' });
+		await flush();
+		mock.emit('boards', 'update', { id: 'b1', name: 'Gleich', card_fields: ['company'] });
+		release();
+		await pending;
+		expect(store.board!.name).toBe('Gleich');
 		stop();
 	});
 });

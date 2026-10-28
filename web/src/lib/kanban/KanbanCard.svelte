@@ -7,16 +7,6 @@
 		year: '2-digit',
 		timeZone: 'UTC'
 	});
-
-	// today as YYYY-MM-DD in local time (toISOString would be UTC: wrong between 0 and 2 am),
-	// refreshed every minute so "overdue" flips at midnight without a reload
-	function localDate() {
-		const d = new Date();
-		const pad = (n: number) => String(n).padStart(2, '0');
-		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-	}
-	let today = $state(localDate());
-	if (typeof window !== 'undefined') setInterval(() => (today = localDate()), 60_000);
 </script>
 
 <script lang="ts">
@@ -38,6 +28,7 @@
 	import { typeLabel } from '#lib/activities/types.js';
 	import { relativeDay, type LastActivity } from '#lib/last-activity/format.js';
 	import { clock } from '#lib/todos/clock.svelte.js';
+	import { localDay } from '#lib/todos/due.js';
 	import NextTodoBadge from '#lib/todos/NextTodoBadge.svelte';
 	import GateBadge from '#lib/gates/GateBadge.svelte';
 	import type { OpenTodo } from '#lib/todos/types.js';
@@ -72,7 +63,9 @@
 	let edge = $state<Edge | null>(null);
 
 	const close = $derived(toDateInput(lead.expected_close));
-	const overdue = $derived(close !== '' && close < today);
+	// today in local time from the shared clock, so "overdue" flips at midnight without a reload
+	// (only cards with a date read it)
+	const overdue = $derived(close !== '' && close < localDay(clock.now));
 	const owner = $derived(lead.owner ? userLabel(lead.owner) : '');
 	const company = $derived(fields.includes('company') ? companyName(lead.company) : '');
 	const people = $derived(

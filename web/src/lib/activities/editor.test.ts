@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Editor } from '@tiptap/core';
 import { clampSpan, createEditor, editorHtml, editorImageSrc } from './editor';
 import { sanitizeHtml } from './sanitize';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// read as text (Vitest stubs CSS imports, also with ?raw); the test file's own path, as a file
+const css = readFileSync(fileURLToPath(import.meta.url).replace(/editor\.test\.ts$/, 'activity-html.css'), 'utf8');
 
 const DATA_IMG = 'data:image/png;base64,iVBORw0KGgo=';
 const TRACKER = 'https://tracker.example/pixel.gif';
@@ -31,6 +36,21 @@ describe('editorImageSrc', () => {
 		for (const src of [TRACKER, '//tracker.example/x', '/api/files/activities/x/y.png', 'DATA:IMAGE/png;base64,AA', 'javascript:alert(1)', 'data:text/html,x', '', null, 3]) {
 			expect(editorImageSrc(src), String(src)).toBeNull();
 		}
+	});
+});
+
+describe('table style: one source for editor and timeline (activity-html.css)', () => {
+	it('the editor carries no table classes of its own, only .activity-html', () => {
+		open('<table><tbody><tr><td>x</td></tr></tbody></table>');
+		const box = element!.querySelector('.ProseMirror')!;
+		expect(box.classList.contains('activity-html')).toBe(true);
+		expect(box.className).not.toMatch(/_table|_td|_th|selectedCell/);
+	});
+
+	it('the stylesheet has the editor-only rules next to the shared ones', () => {
+		expect(css).toMatch(/\.activity-html th,\s*\.activity-html td\s*\{/);
+		expect(css).toMatch(/\.activity-html\.ProseMirror table\s*\{\s*table-layout: fixed;/);
+		expect(css).toMatch(/\.activity-html \.selectedCell\s*\{/);
 	});
 });
 

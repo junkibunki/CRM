@@ -55,6 +55,17 @@ describe('normalizeDomain: only plain public hostnames', () => {
 	])('refuses %j', (input) => {
 		expect(lib.normalizeDomain(input).error).toBeTruthy();
 	});
+
+	it('names the reason: an IP literal vs. an invalid ending (hyphen/digit)', () => {
+		const ip = 'IP-Adressen sind nicht erlaubt, nur Domains.';
+		expect(lib.normalizeDomain('127.0.0.1').error).toBe(ip);
+		expect(lib.normalizeDomain('0x7f.1').error).toBe(ip);
+		expect(lib.normalizeDomain('0x7f.0x1').error).toBe(ip);
+		// these used to say "IP-Adressen sind nicht erlaubt"
+		expect(lib.normalizeDomain('firma.d3').error).toBe('Ungültige Domain-Endung „d3“.');
+		expect(lib.normalizeDomain('firma.de-x').error).toBe('Ungültige Domain-Endung „de-x“.');
+		expect(lib.normalizeDomain('firma.x').error).toBe('Ungültige Domain-Endung „x“.');
+	});
 });
 
 describe('checkTarget: what the server may request', () => {
