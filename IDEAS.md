@@ -28,7 +28,7 @@ Status: `offen` → `in Arbeit` → `Review` → `fertig`.
 
 ## F1 – Lead-Schnellansicht (Pop-up beim Klick auf eine Karte)
 
-**Status:** offen · **Abhängig von:** – (die Anzeige der letzten Aktivität kommt mit F4)
+**Status:** fertig (Welle 1) · **Abhängig von:** – (die Anzeige der letzten Aktivität kommt mit F4)
 
 **Ziel:** Ein Klick auf eine Lead-Karte öffnet eine kompakte Übersicht statt direkt des
 Bearbeiten-Dialogs. Von dort geht es zum Bearbeiten oder zur vollständigen Ansicht.
@@ -51,7 +51,7 @@ Bearbeiten-Dialogs. Von dort geht es zum Bearbeiten oder zur vollständigen Ansi
 
 ## F2 – Lead-Detailseite
 
-**Status:** offen · **Abhängig von:** F3 nur für die Aktivitäten-Kachel (siehe Schnittstelle)
+**Status:** fertig (Welle 1, Aktivitäten bei der Integration eingesetzt) · **Abhängig von:** F3 nur für die Aktivitäten-Kachel
 
 **Ziel:** Eine eigene Seite pro Lead mit allen Informationen; Herzstück sind die
 Aktivitäten (F3).
@@ -83,7 +83,7 @@ Funktion mit `rank` am Ende der Zielphase, siehe `kanban.md`)
 
 ## F3 – Aktivitäten zu einem Lead
 
-**Status:** offen · **Abhängig von:** – · **Migration reserviert:** `1793190000_activities.js`
+**Status:** fertig (Welle 1) · **Abhängig von:** – · **Migration:** `1793190000_activities.js`
 
 **Ziel:** Zu jedem Lead lassen sich Aktivitäten anlegen, damit alle Nutzer sehen, was im
 Lead passiert ist. Das ist das wichtigste Feature.
@@ -169,7 +169,7 @@ Welle 0)
 
 ## F5 – Kleinere Punkte aus den Reviews (Sammelposten)
 
-**Status:** offen · Hier landen „minor"-Findings, die nicht vor einem Commit behoben
+**Status:** fertig (Welle 1, bis auf das atomare Neu-Nummerieren → F13) · Hier standen „minor"-Findings, die nicht vor einem Commit behoben
 wurden. Jeder Punkt mit Datei, Szenario und Vorschlag.
 
 * **Rollback überschreibt fremde Änderung kurz** – `web/src/lib/board.svelte.ts`
@@ -201,6 +201,48 @@ wurden. Jeder Punkt mit Datei, Szenario und Vorschlag.
 * **Nutzer ohne Namen** – `collection.svelte.ts` (`userLabel`): Kollegen sehen
   „Unbenannt", weil E-Mails verborgen sind. Vorschlag: `name` bei Konten Pflicht machen
   oder eine Profilseite, auf der man ihn setzt.
+
+---
+
+## F13 – Sammelposten 2 (kleinere Punkte aus Welle 1)
+
+**Status:** offen · Je Punkt: Datei, Szenario, Vorschlag. Keine neuen Features. Kann in
+Welle 2 parallel laufen, wenn sich die Dateien nicht mit F7/F10 überschneiden (sonst danach).
+
+* **Atomares Neu-Nummerieren** – `board.svelte.ts` (`rankAt`): parallel laufende Updates sind
+  nicht atomar; andere Nutzer sehen kurz eine durcheinandergeratene Reihenfolge. Vorschlag:
+  Migration `batch.enabled = true`, dann `pb.createBatch()`; oder ein Hook-Endpoint.
+* **Rollback bei gleichem Wert** – `board.svelte.ts` und `lead/lead.svelte.ts` (`rollback`):
+  speichert ein anderer gleichzeitig *denselben* Wert und unser Request scheitert, wird lokal
+  der alte Wert angezeigt. Vorschlag: merken, ob seit dem Absenden ein Realtime-Event für das
+  Feld kam.
+* **Kopfzeile auf dem Handy** – `routes/+layout.svelte`: bei 390 px ragt „Abmelden" über den
+  Rand (alle Seiten). Vorschlag: Navigation umbrechen bzw. Menü.
+* **`lead` einer Aktivität per API änderbar** – Migration `activities`: Rule wie bei `author`
+  (`@request.body.lead:isset = false || @request.body.lead = lead`).
+* **Original-Dateinamen gehen verloren** – Anhänge: PocketBase baut Namen um. Vorschlag:
+  Hook, der den Originalnamen in einem JSON-Feld `attachment_names` mitschreibt.
+* **Editor verliert Bilder, Tabellen, h1/h4–h6** beim Bearbeiten per API gespeicherter
+  Inhalte – `activities/editor.ts`. Vorschlag: Image- und Table-Extension (Bilder nur
+  `data:`/geschützt), Überschriften-Level erweitern.
+* **Tageslabels „Heute/Gestern"** in der Timeline springen um Mitternacht erst beim nächsten
+  Neuzeichnen um – wie `KanbanCard` einen minütlichen `today`-Zustand nutzen.
+* **„Bilder anzeigen" wird nicht gemerkt** (pro Aktivität, nur bis zum Neuladen).
+* **Lange Texte per Heuristik** (> 500 Zeichen / > 6 Blöcke) statt gemessen.
+* **Doppelte Datumshelfer** – `localDate()` in `KanbanCard.svelte` und `kanban/preview.ts`:
+  zusammenlegen.
+* **`isGone()` und `MAX_RANK_LENGTH` doppelt** in `board.svelte.ts` und `lead/lead.svelte.ts`:
+  in ein gemeinsames Modul.
+* **Schnellansicht:** Effekt „schließen, wenn gelöscht" und die Übergabe „Bearbeiten" haben keinen
+  direkten Test; nach „Bearbeiten" kann der Fokus auf die Karte statt in den Dialog gehen
+  (manuell prüfen); `shown` könnte `$state.raw` sein.
+* **Dialog-Schließen-Button** hat den Screenreader-Text „Close" (englisch, shadcn-CLI-Output,
+  alle Dialoge) – über einen Prop/Wrapper auf „Schließen".
+* **E-Mail-Vorschläge (F9):** Drei-Teil-Namen sind geraten („Anna Maria / Mueller"); die
+  Dubletten-Prüfung per Website läuft nur im Client; Vorschläge erscheinen auch beim
+  Bearbeiten (nur leere Felder).
+* **`favicon.ico` fehlt** – 404 in der Konsole jeder Seite.
+* **`name` bei Konten Pflicht** – braucht eine Migration; bis dahin „Ohne Namen (abc123)".
 
 ---
 
@@ -240,8 +282,7 @@ Rules wie überall: alle Angemeldeten dürfen alles. Index auf `(lead, done, due
 **Phase „abgeschlossen"** – neues Feld `board_columns.closed` (bool) in derselben
 Migration; die Migration setzt es für „Gewonnen" und „Verloren". Im Phasen-Dialog als
 Schalter „Abgeschlossene Phase" (dort wird kein nächster Schritt erwartet).
-`source_activity` gibt es erst mit F3; liegt F3 bei Umsetzung noch nicht vor, das Feld in
-einer eigenen Migration nachziehen (Nummer `1793190002_todos_source.js` reserviert).
+`source_activity` direkt in `1793190001_todos.js` anlegen (F3 ist da).
 
 **„Nächstes To-Do"** = offenes To-Do (`done = false`) mit der frühesten Fälligkeit. Ein To-Do
 ohne Uhrzeit zählt innerhalb seines Tages vor denen mit Uhrzeit; bei Gleichstand das zuerst
@@ -316,7 +357,7 @@ mit F3 der Button „To-Do daraus anlegen".
 
 ## F9 – Kontakt aus E-Mail-Adresse: Name und Unternehmen vorschlagen (Stufe 1)
 
-**Status:** offen · **Abhängig von:** – · **Migration:** keine
+**Status:** fertig (Welle 1) · **Abhängig von:** – · **Migration:** keine
 
 **Ziel:** Beim Anlegen eines Kontakts genügt die E-Mail-Adresse. Vorname, Nachname und
 Unternehmen werden sofort und rein deterministisch im Client **vorgeschlagen** — nichts
@@ -553,7 +594,7 @@ Dateien; in Welle 2 ändert F7 dort nur `ActivityItem.svelte` (Button „To-Do d
    Umgebungsvariable `PB_URL` statt fest `:8090`).
 5. Alles committen; erst dann starten die Agents.
 
-### Welle 1 – fünf Agents parallel
+### Welle 1 – fünf Agents parallel (erledigt)
 
 | Agent | Feature | Ports | Hinweis |
 |---|---|---|---|
@@ -571,7 +612,7 @@ Detailseite einsetzen (kleine Änderung, eigener Review); Doku zusammenführen.
 
 | Agent | Feature | Hinweis |
 |---|---|---|
-| B1 | **F7 + F4** To-Dos, danach letzte Aktivität | ein Agent, weil beide `KanbanCard`, `LeadPreview` und die Board-Stores ändern; `source_activity` direkt in `1793190001_todos.js` (F3 ist da). Darf zusätzlich `LeadPreview.svelte`, `routes/leads/[id]/` (To-Do-Kachel) und `activities/ActivityItem.svelte` (Button) ändern |
+| B1 | **F7 + F4** To-Dos, danach letzte Aktivität | ein Agent, weil beide `KanbanCard`, `LeadPreview` und die Board-Stores ändern; `source_activity` direkt in `1793190001_todos.js` (F3 ist da). Darf zusätzlich `LeadPreview.svelte` + `preview.ts`, `routes/leads/[id]/` (To-Do-Kachel statt Platzhalter) und `activities/ActivityItem.svelte` (Button „To-Do daraus") ändern |
 | B2 | **F10** Website-Daten | nur Hook-Dateien + die beiden Dialoge |
 
 **Integration 2:** mergen, prüfen, Doku.

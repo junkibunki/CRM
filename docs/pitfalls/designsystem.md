@@ -55,6 +55,10 @@ Feldern ist `""` gewollt „keine Auswahl" (Unternehmen eines Kontakts). Bei Pfl
 `LeadDialog.svelte`) — wer ein Select baut, dessen Wert weiterverarbeitet wird, muss `""`
 an *einer* Stelle behandeln.
 
+**Ein Select, das eine Aktion auslöst** (z. B. Phasenwechsel auf der Detailseite), mit einer
+Funktionsbindung: `bind:value={() => current, (v) => v && store.move(v)}`. Der Trigger zeigt
+immer den echten Wert, und das Abwählen auf `""` wird ohne lokalen Zustand ignoriert.
+
 **Eine Variante schlägt die nackte Utility-Klasse, und `tailwind-merge` merkt es nicht.**
 Symptom: `<Select.Trigger class="h-11">` bleibt 36px hoch. Ursache: der Trigger bringt
 `data-[size=default]:h-9` mit (Spezifität 0,2,0 gegen 0,1,0). Über dieselbe Variante

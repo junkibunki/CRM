@@ -62,6 +62,22 @@ laufen darüber. Selbst nachbauen heißt, diese Fehler erneut zu machen:
 * **Die Antwort eines `updateLead` wird nicht übernommen.** Der optimistische Stand hat
   unsere Werte schon, und eine neuere Änderung eines anderen kann per Realtime vor der
   Antwort eingetroffen sein. `column`/`rank` ändert nur die Move-Logik.
+* **Ansichten eines einzelnen Leads bekommen die id, nicht das Objekt** und suchen den Lead
+  im Store (`locateLead`, `LeadPreview`): so folgen sie Realtime, Moves und dem Abgleich nach
+  einem Reconnect, und „Lead weg" erkennt Löschen, Löschen der Phase und Offline-Löschen.
+* **Die Detailseite hat einen eigenen `LeadStore`** (`lib/lead/lead.svelte.ts`): abonniert
+  `leads/<id>` und `board_columns`, nicht den Board-Store. Phasenwechsel = ein Update
+  `column` + `rank`, der Rank liegt hinter dem letzten Lead der Zielphase (vom Server gelesen:
+  `column = X && id != self`). Ein Realtime-Delete auf dem Record-Topic kommt an.
+* **Rollback nur eigener Felder:** schlägt ein optimistisches Update fehl, werden nur Felder
+  zurückgesetzt, die noch unseren Wert haben (`rollback()` mit `same()`), für Lead, Phase
+  und Pipeline. Speichert jemand gleichzeitig *denselben* Wert, ist das nicht
+  unterscheidbar (F13).
+* **Neu-Nummerieren:** `rankAt()` arbeitet auf einer **Kopie** der Liste (Realtime kann die
+  Live-Liste währenddessen verschieben), schickt die Updates per `allSettled`, setzt
+  fehlgeschlagene auf ihren Server-Rank zurück und sortiert die betroffene Live-Liste danach
+  komplett mit `byRank` (`sortLive`). Atomar ist das nicht (F13: Batch-API). Ein Fehler mit
+  400/403/404 prüft zusätzlich die Session.
 * **Rollbacks:** ein `404` heißt „von jemand anderem gelöscht" — dann lokal entfernen,
   nicht zurückrollen (sonst bleibt eine Geisterkarte). *Aber erst die Session prüfen*
   (`isGone()` ruft `auth.refresh()`): mit ungültigem Token antwortet PocketBase ebenfalls

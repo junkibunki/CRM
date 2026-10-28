@@ -30,6 +30,17 @@ Muss **genau einen** Namen ausgeben. Heilmittel ist ein erneutes `npm run build`
   `lib/test/pb-mock.ts`; der Mock hängt als `__mock` am gemockten Modul (Muster im
   Dateikopf). `mock.hold(collection, method)` hält einen Request an, um Rennen
   (Event während des Ladens, Antwort nach fremdem Update) deterministisch zu testen.
+* **Der `pb-mock` ignoriert `filter`, `sort` und weitere Optionen** und liefert `emit()` an
+  jeden Abonnenten der Collection, egal welches Topic. Stores filtern/sortieren die Antwort
+  deshalb selbst, Record-Topic-Handler prüfen die id. Optionen testen per
+  `vi.spyOn(mock.pb, 'collection')` (Beispiele: `lead.test.ts`, `activities.test.ts`); `File`
+  lässt sich nicht klonen, ebenfalls per Spy abfangen.
+* **`auth` ist ein Singleton und merkt sich seine letzte Session-Prüfung** (wenige Sekunden,
+  siehe `refresh(maxAge)`). Tests, die eine Prüfung beim ersten Laden erwarten, rufen in
+  `beforeEach` `auth.logout()` (Beispiel `live.test.ts`).
+* **Unicode-Escapes in Regexen über das Edit-Werkzeug** (`\u2028`, `\u00a0`) landen als echte
+  Zeichen in der Datei; U+2028 bricht die Zeile: „Unterminated regular expression". Solche
+  Zeilen per Skript mit reinen ASCII-Escapes schreiben.
 * **`npx vitest` startet ≈ 25 s langsamer als `vitest` direkt** (Windows, gemessen: 37 s statt
   10 s für dieselben Tests). In npm-Skripten `vitest` (ohne `npx`), in Node-Skripten
   `node_modules/vitest/vitest.mjs` direkt aufrufen (so `web/scripts/predev.mjs`).
@@ -66,6 +77,15 @@ Muss **genau einen** Namen ausgeben. Heilmittel ist ein erneutes `npm run build`
 * **Der erste Klick nach dem Start verpufft.** Symptom: Link geklickt, URL bleibt,
   Titel „Loading …". Vite hat neue Abhängigkeiten entdeckt und lädt die Seite komplett
   neu. Nochmal klicken; kein App-Bug.
+* **`TaskStop` beendet `npx vite` nicht:** der Node-Kindprozess hält den Port weiter. Über den
+  Port finden und beenden (PowerShell: `Get-NetTCPConnection -LocalPort 518n`).
+* **Playwright startet headless (Chromium, `--no-sandbox`) keinen Pragmatic-DnD-Drag** mit
+  `page.mouse`/`locator.dragTo`; das Board bleibt unverändert. Ausweg: synthetische
+  `DragEvent`s per `page.evaluate` mit einem gemeinsamen `DataTransfer` (`dragstart` auf der
+  Karte, `dragenter`/`dragover`/`drop` auf dem Ziel, `dragend`). Mit dem Playwright-MCP im
+  sichtbaren Browser funktionierte `page.mouse` dagegen.
+* **`504 Outdated Optimize Dep`** beim ersten Laden nach neuen Abhängigkeiten: Vite optimiert
+  neu und lädt die Seite (oft zweimal) neu. Warten, neu laden; kein App-Fehler.
 * **`browser_drag` des Playwright-MCP läuft auf großen Seiten in ein 30s-Timeout**, obwohl
   der Drop durchging (1000 Karten). Ergebnis im DOM prüfen statt dem Fehler zu glauben.
 * **`browser_drag` von einer Karte auf sich selbst ist ein Klick**, kein Drag (keine

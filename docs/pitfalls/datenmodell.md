@@ -9,6 +9,7 @@ Seite mit Live-Daten baust.
 |---|---|---|
 | `companies` | `name`* , `website`, `email`, `phone`, `address`, `notes` | – |
 | `contacts` | `last_name`*, `first_name`, `position`, `email`, `phone`, `notes` | `company` → companies (optional) |
+| `activities` | `type`* (`note`, `meeting`, `email_in`, `email_out`), `body`* (HTML, ≤ 1 MB), `occurred_at`*, `subject`, `attachments` (≤ 10 × 20 MB, **protected**) | `lead`* → leads (cascade), `contacts` → contacts, `author`* → users |
 | `leads` | `title`*, `expected_close` (optional), `rank`* | `company`* → companies, `contacts`* → contacts (1–50), `owner`* → users, `column`* → board_columns |
 
 `*` = Pflicht. `created`/`updated` sind `autodate`-Felder; das Erstellungsdatum eines
@@ -32,6 +33,18 @@ Sperren eines Mitarbeiters genügt es, sein Passwort zu ändern.
   `leads.contacts` heraus.
 * **Kontakt, der der einzige eines Leads ist:** `400` wie oben.
 * **Phase löschen** löscht ihre Leads mit (cascade); der Dialog sagt, wie viele.
+* **Lead löschen** löscht seine Aktivitäten mit (cascade). Ein gelöschter Kontakt
+  verschwindet nur aus `activities.contacts`.
+* **Konten mit Aktivitäten** lassen sich (wie bei `leads.owner`) nicht löschen:
+  `activities.author` ist Pflicht ohne cascade.
+
+## Rule-Muster
+
+* **Feld beim Anlegen erzwingen:** `@request.body.author = @request.auth.id`.
+* **Feld unveränderlich:** `@request.body.author:isset = false || @request.body.author = author`.
+  PocketBase normalisiert Modifier (`author+`, `+author`) vor der Rule; Fälschungsversuche
+  darüber wurden im Review geprüft und abgewiesen.
+* **`lead` einer Aktivität ist per API noch änderbar** (die UI bietet es nicht an), siehe F13.
 
 ## Daten im Client: `LiveCollection` (`lib/collection.svelte.ts`)
 
@@ -46,11 +59,17 @@ Sperren eines Mitarbeiters genügt es, sein Passwort zu ändern.
   Ergebnis sofort in die Liste ab; das eigene Realtime-Event danach ist dedupliziert.
 * Sortierung deutsch (`localeCompare('de')`), nicht per `sort=` des Servers — der sortiert
   binär (`Ä` nach `Z`).
+* Nutzer ohne Namen erscheinen als „Ohne Namen (abc123)" (ID-Anfang), damit man zwei
+  unterscheiden und das Konto im Dashboard finden kann.
 * `users` ist ebenfalls eine `LiveCollection` (Namen für „Zuständig"): Umbenennungen und
   neue Konten erscheinen ohne Reload, und eine leere Gast-Antwort bleibt nicht hängen.
 
 ## Formulare
 
+* **Kontakte eines Leads als Differenz speichern:** Board und Detailseite senden
+  `contacts+` / `contacts-` (gegen den Stand beim Öffnen des Dialogs). PocketBase hängt ohne
+  Duplikate an und ignoriert unbekannte IDs in `-`; alle entfernen ergibt 400
+  `validation_required`. Nur die Reihenfolge geändert: nichts wird gesendet.
 * **Nur geänderte Felder speichern** (`changedFields()` gegen den Stand beim Öffnen),
   sonst überschreibt ein Dialog still, was jemand anders inzwischen gespeichert hat.
 * `LiveCollection.update` übernimmt die Server-Antwort nur, wenn sie nicht älter ist als

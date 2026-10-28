@@ -43,7 +43,9 @@ Umfang der Korrektur, nicht nach der Zahl der Findings:
 * **`npm run dev` führt vorher die Unit-Tests aus** und zeigt das Ergebnis an, damit beim
   Starten sichtbar ist, ob alles noch funktioniert. `npm run build` bricht bei roten Tests
   ab. Vor jedem Commit: `npm test` grün, bei Schema/Rules/Hooks zusätzlich
-  `npm run test:api` (beides aus `web/`).
+  `npm run test:api` (beides aus `web/`). `auth.refresh(maxAge)` darf eine wenige Sekunden
+  alte erfolgreiche Prüfung desselben Tokens wiederverwenden; `liveSync` tut das nur fürs
+  erste Laden (5 s), damit eine Seite mit mehreren Live-Quellen nicht mehrfach fragt.
 * Werkzeuge: `web/src/lib/test/pb-mock.ts` (PocketBase-Client im Speicher: Realtime-Events,
   Reconnect, Fehler, angehaltene Requests, ungültige Session) und `scripts/test-api.mjs`
   (Wegwerf-PocketBase). Beispiele: `board.test.ts`, `live.test.ts`. Fallstricke in
@@ -92,6 +94,7 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 | [testen.md](docs/pitfalls/testen.md) | die App lokal startest oder im Browser verifizierst |
 | [designsystem.md](docs/pitfalls/designsystem.md) | an UI-Komponenten, `app.css`, `components.json` oder Layout arbeitest |
 | [datenmodell.md](docs/pitfalls/datenmodell.md) | eine Collection, Relation oder Lösch-Logik änderst oder eine Seite mit Live-Daten baust |
+| [richtext-dateien.md](docs/pitfalls/richtext-dateien.md) | an Aktivitäten, dem Editor, HTML-Bereinigung oder geschützten Dateien arbeitest |
 | [kanban.md](docs/pitfalls/kanban.md) | an der Leads-Pipeline, Drag & Drop, `rank` oder `liveSync()` arbeitest |
 
 ## Struktur
@@ -118,15 +121,20 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       │   ├── board.svelte.ts    # BoardStore: Pipeline laden, Realtime, optimistische Moves
 │       │   ├── kanban/            # KanbanBoard (DnD-Monitor), KanbanColumn, KanbanCard,
 │       │   │                      # LeadDialog, ColumnDialog, BoardSettingsDialog,
-│       │   │                      # drop.ts (Drop-Index als reine Funktion)
+│       │   │                      # LeadPreview (Schnellansicht), preview.ts + drop.ts (rein)
+│       │   ├── lead/              # LeadStore (ein Lead live, Phasenwechsel), Kacheln, format.ts
+│       │   ├── activities/        # ActivityStore, Timeline, Formular, Tiptap-Editor (lazy),
+│       │   │                      # sanitize.ts (DOMPurify), files.ts (Datei-Token)
 │       │   ├── test/pb-mock.ts    # PocketBase-Mock für Unit-Tests (*.test.ts neben dem Code)
-│       │   ├── crm/               # CompanyDialog, ContactDialog
+│       │   ├── crm/               # CompanyDialog, ContactDialog, email-suggest.ts (Name und
+│       │   │                      # Unternehmen aus der E-Mail, rein)
 │       │   ├── components/        # ConfirmDialog, PageHeader (Titel + Suche + Aktionen)
 │       │   ├── components/ui/     # shadcn-svelte, CLI-Output (nicht händisch pflegen)
 │       │   └── utils.ts           # cn() = clsx + tailwind-merge
 │       └── routes/                # +layout.ts (ssr=false), +layout.svelte (Guard +
 │                                  # Navigation), +page.svelte (-> /leads),
-│                                  # leads/ (Pipeline), kontakte/, unternehmen/, login/
+│                                  # leads/ (Pipeline), leads/[id]/ (Detailseite),
+│                                  # kontakte/, unternehmen/, login/
 ├── pocketbase/
 │   ├── pocketbase(.exe)           # gitignored, gepinnt in scripts/get-pocketbase.sh
 │   ├── pb_migrations/             # JS-Migrationen, laufen beim Start automatisch
@@ -135,7 +143,8 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 ├── scripts/get-pocketbase.sh      # lädt das gepinnte PocketBase-Binary (+ Prüfsumme)
 ├── scripts/seed-dev.mjs           # nur lokal: Superuser, Dev-User, dann scripts/seed/*.mjs
 ├── scripts/seed/                  # Demo-Daten, eine Datei pro Feature (idempotent)
-├── scripts/test-api.mjs           # API-/Rule-Tests gegen Wegwerf-PocketBase (npm run test:api)
+├── scripts/test-api*.mjs          # API-/Rule-Tests gegen Wegwerf-PocketBase; npm run test:api
+│                                  # führt alle aus (neue Datei wird automatisch mitgetestet)
 ├── scripts/agent-env.sh           # eigene Ports (PB 810n, Vite 518n) + Datenbank pro Worktree;
 │                                  # dort nie launch.json/Browser-Pane (siehe testen.md)
 └── web/scripts/predev.mjs         # Unit-Tests vor npm run dev, Ergebnis gut sichtbar
@@ -186,8 +195,8 @@ Ein Prozess serviert alles: PocketBase liefert `pb_public/` inkl. SPA-Fallback a
   „leer" aus statt abgemeldet. Nur `authRefresh` antwortet mit 401. Typischer Auslöser:
   der Admin ändert das Passwort eines Mitarbeiters. Deshalb prüft `auth.refresh()` die
   Session vor jedem `liveSync`-Laden (auch dem ersten), nach fehlgeschlagenen Schreibzugriffen
-  (`LiveCollection.guard` bei 400/403/404; im Board nur bei 404 über `isGone`, sonst greift
-  die minütliche Prüfung), beim Tab-Fokus und minütlich. Neue
+  (`LiveCollection.guard`; im Board nach fehlgeschlagenem Anlegen und Neu-Nummerieren bei
+  400/403/404, beim Ändern/Verschieben/Löschen bei 404 über `isGone`), beim Tab-Fokus und minütlich. Neue
   Live-Daten immer über `liveSync()` / `LiveCollection` laden, dann ist das abgedeckt.
 * **`expand` kommt leer zurück, wenn die View-Rule der Zielcollection zumacht.** Symptom:
   `record.expand` ist `{}`, kein Fehler, kein Log. Ursache bei `users`: die Standard-Rule
