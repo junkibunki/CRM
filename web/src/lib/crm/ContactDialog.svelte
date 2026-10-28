@@ -247,6 +247,7 @@
 <CompanyDialog
 	company={null}
 	prefill={companyPrefill}
+	autoLookup
 	bind:open={companyOpen}
 	onsaved={(c) => (form.company = c.id)}
 />
