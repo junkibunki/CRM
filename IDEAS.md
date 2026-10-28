@@ -206,8 +206,26 @@ wurden. Jeder Punkt mit Datei, Szenario und Vorschlag.
 
 ## F13 – Sammelposten 2 (kleinere Punkte aus Welle 1)
 
-**Status:** offen · Je Punkt: Datei, Szenario, Vorschlag. Keine neuen Features. Kann in
-Welle 2 parallel laufen, wenn sich die Dateien nicht mit F7/F10 überschneiden (sonst danach).
+**Status:** aufgeteilt · Je Punkt: Datei, Szenario, Vorschlag. Keine neuen Features.
+
+**F13a (Welle 2, parallel zu F7/F10)** – nur Punkte, deren Dateien weder F7 noch F10 gehören:
+Kopfzeile auf dem Handy, `lead` einer Aktivität per API sperren, Original-Dateinamen, Editor
+verliert Bilder/Tabellen/Überschriften, Tageslabels um Mitternacht, `favicon.ico`, `name` bei
+Konten Pflicht.
+* **Migration reserviert:** `1793190004_f13a.js` (Rules/Felder dieser Punkte in einer Datei).
+* **Besitzt:** `pocketbase/pb_hooks/attachment-names.pb.js` (+ `-lib.js`), `web/static/favicon.ico`
+  (bzw. ein passendes Icon).
+* **Darf ändern:** `web/src/routes/+layout.svelte`, `web/src/lib/activities/editor.ts`,
+  `sanitize.ts` (nur Allowlist für Tabellen/Bilder), `format.ts`, `Attachment.svelte`,
+  `files.ts`, `ActivityTimeline.svelte`, `activities.svelte.ts` und deren Tests,
+  `scripts/test-api-activities.mjs`. **Nicht** `ActivityItem.svelte` (gehört in Welle 2 F7).
+* **Zentral vorab (erledigt):** `@tiptap/extension-image`, `@tiptap/extension-table`.
+
+**F13b (nach Welle 2)** – die übrigen Punkte; sie berühren Dateien von F7/F10/F12
+(`board.svelte.ts`, `KanbanCard`, `LeadPreview`/`preview.ts`, `ActivityItem`, Kontakt-Dialoge):
+atomares Neu-Nummerieren, Rollback bei gleichem Wert, „Bilder anzeigen" merken, Heuristik für
+lange Texte, doppelte Datums-Helfer, doppeltes `isGone`/`MAX_RANK_LENGTH`, Tests/Fokus der
+Schnellansicht, Screenreader-Text „Close", Punkte zu den E-Mail-Vorschlägen.
 
 * **Atomares Neu-Nummerieren** – `board.svelte.ts` (`rankAt`): parallel laufende Updates sind
   nicht atomar; andere Nutzer sehen kurz eine durcheinandergeratene Reihenfolge. Vorschlag:
@@ -608,12 +626,16 @@ Dateien; in Welle 2 ändert F7 dort nur `ActivityItem.svelte` (Button „To-Do d
 F3 → F2 → F1), nach jedem Merge `check` + `build`; danach `ActivityTimeline` in die
 Detailseite einsetzen (kleine Änderung, eigener Review); Doku zusammenführen.
 
-### Welle 2 – zwei Agents parallel
+### Welle 2 – drei Agents parallel
+
+Jeder Agent führt als **erstes** `git merge --ff-only main` in seinem Worktree aus (Worktrees
+können von einem älteren Commit abzweigen, siehe `testen.md`).
 
 | Agent | Feature | Hinweis |
 |---|---|---|
 | B1 | **F7 + F4** To-Dos, danach letzte Aktivität | ein Agent, weil beide `KanbanCard`, `LeadPreview` und die Board-Stores ändern; `source_activity` direkt in `1793190001_todos.js` (F3 ist da). Darf zusätzlich `LeadPreview.svelte` + `preview.ts`, `routes/leads/[id]/` (To-Do-Kachel statt Platzhalter) und `activities/ActivityItem.svelte` (Button „To-Do daraus") ändern |
 | B2 | **F10** Website-Daten | nur Hook-Dateien + die beiden Dialoge |
+| B3 | **F13a** Sammelposten 2, Teil a | siehe F13a; Ports 8103/5183 |
 
 **Integration 2:** mergen, prüfen, Doku.
 
