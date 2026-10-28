@@ -83,8 +83,9 @@ wiederholen).
 Der MCP-Dienst braucht einen Reverse-Proxy vor PocketBase, der `/mcp` an den Dienst leitet.
 PocketBase läuft dann nur auf `127.0.0.1:8090`, der Proxy macht HTTPS.
 
-1. Secret erzeugen (≥ 32 Zeichen), z. B. `openssl rand -hex 24`. Derselbe Wert kommt in
-   PocketBase und den Dienst.
+1. Secret erzeugen (≥ 32 Zeichen), z. B. `openssl rand -hex 24`, und als
+   `CRM_MCP_SECRET=<secret>` in `/etc/crm/crm.env` ablegen (Besitzer root, Rechte `0600`) —
+   nicht direkt in die Unit-Dateien, die sind für alle lesbar. Beide Dienste lesen die Datei.
 2. `cd mcp && npm ci --omit=dev` (nach jedem Deploy).
 3. systemd-Units (Beispiel, Pfade anpassen):
 
@@ -93,7 +94,7 @@ PocketBase läuft dann nur auf `127.0.0.1:8090`, der Proxy macht HTTPS.
 [Service]
 WorkingDirectory=/opt/crm/pocketbase
 ExecStart=/opt/crm/pocketbase/pocketbase serve --http 127.0.0.1:8090
-Environment=CRM_MCP_SECRET=<secret>
+EnvironmentFile=/etc/crm/crm.env
 User=crm
 Restart=on-failure
 [Install]
@@ -108,7 +109,7 @@ ExecStart=/usr/bin/node src/server.js
 Environment=PB_URL=http://127.0.0.1:8090
 Environment=MCP_HOST=127.0.0.1
 Environment=MCP_PORT=8200
-Environment=CRM_MCP_SECRET=<secret>
+EnvironmentFile=/etc/crm/crm.env
 Environment=CRM_APP_URL=https://meinedomain.de
 Environment=CRM_TZ=Europe/Berlin
 User=crm

@@ -25,9 +25,10 @@ if (web.status === 0 && (!mcp || mcp.status === 0)) {
 		`\n\x1b[32m${line}\n  Unit-Tests grün – alles funktioniert wie erwartet.${mcpNote}\n${line}\x1b[0m\n`
 	);
 } else {
-	const which = web.status !== 0 ? 'Unit-Tests' : 'MCP-Unit-Tests';
+	const state = (r) => (r.status === 0 ? 'grün' : 'ROT');
+	const detail = `Web: ${state(web)}` + (mcp ? `, MCP: ${state(mcp)}` : '');
 	console.log(
-		`\n\x1b[31m${line}\n  ACHTUNG: ${which} rot (siehe oben). Dev-Server startet trotzdem.\n${line}\x1b[0m\n`
+		`\n\x1b[31m${line}\n  ACHTUNG: Unit-Tests rot (${detail}, siehe oben).${mcpNote}\n  Dev-Server startet trotzdem.\n${line}\x1b[0m\n`
 	);
 }
 process.exit(0);
