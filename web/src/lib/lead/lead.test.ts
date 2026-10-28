@@ -434,3 +434,13 @@ describe('LeadStore: deleted while offline', () => {
 		expect(mock.pb.authStore.token).toBe('test-token');
 	});
 });
+
+describe('LeadStore: stage gate (F12)', () => {
+	it('a stage change refused by the gate rolls back and shows the server sentence', async () => {
+		const msg = 'Bevor der Lead nach „Angebot“ kann, muss diese Bedingung erfüllt sein: „X“.';
+		mock.fail('update', apiError(400, 'x', { column: { code: 'gate_open', message: msg } }), 'leads');
+		await store.moveToStage('c2');
+		expect(store.lead?.column).toBe('c1');
+		expect(store.error).toBe(msg);
+	});
+});

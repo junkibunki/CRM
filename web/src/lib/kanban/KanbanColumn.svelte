@@ -11,6 +11,8 @@
 		type Edge
 	} from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
+	import LockIcon from '@lucide/svelte/icons/lock';
+	import type { GateStore } from '#lib/gates/gates.svelte.js';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
@@ -36,14 +38,22 @@
 		fields: CardField[];
 		todos?: PipelineTodoStore;
 		activity?: LastActivityStore;
+		gates?: GateStore;
 		onopencard: (lead: Lead) => void;
 		onadd: (column: BoardColumn) => void;
 		onedit: (column: BoardColumn) => void;
 		ondelete: (column: BoardColumn) => void;
 	};
-	let { store, column, fields, todos, activity, onopencard, onadd, onedit, ondelete }: Props =
+	let { store, column, fields, todos, activity, gates, onopencard, onadd, onedit, ondelete }: Props =
 		$props();
 	const showActivity = $derived(fields.includes('last_activity'));
+
+	// F12: requirements of this stage (lock in the header) and, cumulated with the earlier
+	// stages, those every lead here should have fulfilled (warning on the card)
+	const own = $derived(column.gates_exempt ? [] : (gates?.byColumn.get(column.id) ?? []));
+	const applicable = $derived(gates?.applicableFor(column.id, store.columns) ?? []);
+	const openLabels = (lead: Lead) =>
+		applicable.length && gates ? gates.openOf(applicable, lead.id).map((r) => r.label) : [];
 
 	const leads = $derived(store.leads[column.id] ?? []);
 	const overLimit = $derived(column.wip_limit > 0 && leads.length > column.wip_limit);
@@ -119,7 +129,15 @@
 		<span
 			class={cn('size-2.5 shrink-0 rounded-full', COLUMN_COLORS[column.color || 'gray'].dot)}
 		></span>
-		<h2 class="min-w-0 flex-1 truncate text-sm font-semibold">{column.name}</h2>
+		<h2 class="min-w-0 flex-1 truncate text-sm font-semibold">
+			{column.name}
+			{#if own.length}
+				<span title="Bedingungen ab dieser Phase: {own.map((r) => r.label).join(', ')}">
+					<LockIcon class="mb-0.5 inline size-3 text-muted-foreground" />
+					<span class="sr-only">(mit Bedingungen: {own.map((r) => r.label).join(', ')})</span>
+				</span>
+			{/if}
+		</h2>
 		<span
 			class={cn('text-xs tabular-nums text-muted-foreground', overLimit && 'font-semibold text-destructive')}
 			title={column.wip_limit > 0 ? `WIP-Limit ${column.wip_limit}` : undefined}
@@ -158,6 +176,7 @@
 				nextTodo={todos?.loaded ? (todos.nextFor(lead.id) ?? null) : undefined}
 				closed={!!column.closed}
 				lastActivity={showActivity ? activity?.of(lead.id) : undefined}
+				gateOpen={openLabels(lead)}
 				onopen={onopencard}
 			/>
 		{/each}

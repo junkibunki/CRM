@@ -74,6 +74,8 @@ export interface BoardColumn extends RecordModel {
 	rank: string;
 	/** closed stage (e.g. won/lost): no "Kein nächster Schritt" hint on its cards */
 	closed?: boolean;
+	/** F12: no stage requirements apply here (e.g. "Verloren") */
+	gates_exempt?: boolean;
 }
 
 export interface Lead extends RecordModel {

@@ -2,6 +2,8 @@ import { ClientResponseError, type RecordSubscription } from 'pocketbase';
 import { auth } from './auth.svelte';
 import { applyDelta, listDelta, same } from './diff';
 import { liveSync } from './live';
+import { gateFailure } from './gates/prompt.svelte';
+import type { CheckEntry } from './gates/types';
 import { errorMessage, pb } from './pb';
 import { byRank, freshRanks, insertSorted, rankBetween } from './rank';
 import { type Board, type BoardColumn, type Lead, type LeadData } from './types';
@@ -198,7 +200,8 @@ export class BoardStore {
 	}
 
 	private fail(err: unknown) {
-		this.error = errorMessage(err);
+		// a move refused by a stage gate (F12) gets the server's sentence without the field name
+		this.error = gateFailure(err);
 	}
 
 	/** Rank for position `index` in `list` (which must not contain the moved item). */
@@ -272,7 +275,10 @@ export class BoardStore {
 
 	// --- columns --------------------------------------------------------------------
 
-	async addColumn(data: Pick<BoardColumn, 'name' | 'color' | 'wip_limit' | 'closed'>) {
+	/** Appends a column; resolves the created record, or null if saving failed (error is set). */
+	async addColumn(
+		data: Pick<BoardColumn, 'name' | 'color' | 'wip_limit' | 'closed' | 'gates_exempt'>
+	): Promise<BoardColumn | null> {
 		try {
 			const rank = await this.rankAt(this.columns, this.columns.length, 'board_columns');
 			const rec = await pb
@@ -280,22 +286,24 @@ export class BoardStore {
 				.create<BoardColumn>({ ...data, board: this.id, rank });
 			this.leads[rec.id] ??= [];
 			if (!this.columns.some((c) => c.id === rec.id)) insertSorted(this.columns, rec);
+			return rec;
 		} catch (err) {
 			await checkSession(err);
 			this.fail(err);
+			return null;
 		}
 	}
 
 	async updateColumn(
 		id: string,
-		data: Partial<Pick<BoardColumn, 'name' | 'color' | 'wip_limit' | 'closed'>>
+		data: Partial<Pick<BoardColumn, 'name' | 'color' | 'wip_limit' | 'closed' | 'gates_exempt'>>
 	) {
 		const col = this.columns.find((c) => c.id === id);
 		if (!col) {
 			this.error = COLUMN_GONE;
 			return;
 		}
-		const prev = { name: col.name, color: col.color, wip_limit: col.wip_limit, closed: col.closed };
+		const prev = { name: col.name, color: col.color, wip_limit: col.wip_limit, closed: col.closed, gates_exempt: col.gates_exempt };
 		Object.assign(col, data);
 		try {
 			await pb.collection('board_columns').update(id, data);
@@ -360,8 +368,13 @@ export class BoardStore {
 
 	// --- leads ----------------------------------------------------------------------
 
-	/** Creates a lead at the end of a stage; resolves false if saving failed (error is set). */
-	async addLead(columnId: string, data: LeadData): Promise<boolean> {
+	/**
+	 * Creates a lead at the end of a stage; resolves false if saving failed (error is set).
+	 * With `checks` (confirmed requirements of a gated stage, F12) lead and checks are created
+	 * in one transaction by POST /api/crm/leads: the normal create would be refused there,
+	 * and checks need the lead's id.
+	 */
+	async addLead(columnId: string, data: LeadData, checks?: CheckEntry[]): Promise<boolean> {
 		const list = this.leads[columnId];
 		if (!list) {
 			this.error = 'Diese Phase gibt es nicht mehr (inzwischen gelöscht).';
@@ -369,7 +382,11 @@ export class BoardStore {
 		}
 		try {
 			const rank = await this.rankAt(list, list.length, 'leads');
-			const rec = await pb.collection('leads').create<Lead>({ ...data, column: columnId, rank });
+			const body = { ...data, column: columnId, rank };
+			const rec = checks
+				? (await pb.send<{ lead: Lead }>('/api/crm/leads', { method: 'POST', body: { ...body, checks } }))
+						.lead
+				: await pb.collection('leads').create<Lead>(body);
 			if (!this.findLead(rec.id)) insertSorted(this.leads[columnId] ?? [], rec);
 			return true;
 		} catch (err) {

@@ -20,6 +20,9 @@
 	import CompanyDialog from '#lib/crm/CompanyDialog.svelte';
 	import ContactDialog from '#lib/crm/ContactDialog.svelte';
 	import { changedFields } from '#lib/diff.js';
+	import GateDialog from '#lib/gates/GateDialog.svelte';
+	import type { GateStore } from '#lib/gates/gates.svelte.js';
+	import { GATES_LOADING, GatePrompt, createPlan } from '#lib/gates/prompt.svelte.js';
 	import {
 		fromDateInput,
 		toDateInput,
@@ -35,8 +38,13 @@
 		lead: Lead | null;
 		column: BoardColumn | null;
 		open: boolean;
+		/** F12: a new lead in a stage with requirements is confirmed first (gate dialog) */
+		gates?: GateStore;
+		/** the pipeline's stages (for the cumulative requirements) */
+		columns?: BoardColumn[];
 	};
-	let { store, lead, column, open = $bindable() }: Props = $props();
+	let { store, lead, column, open = $bindable(), gates, columns }: Props = $props();
+	const gatePrompt = new GatePrompt();
 
 	let form = $state({
 		title: '',
@@ -118,6 +126,29 @@
 			return;
 		}
 		if (!column) return;
+		const target = column;
+		// a stage with requirements (its own or earlier ones): confirm them first; lead and
+		// confirmations are then created together (POST /api/crm/leads)
+		const plan = createPlan(gates, columns, target.id);
+		if (plan.kind === 'wait') {
+			error = GATES_LOADING;
+			return;
+		}
+		if (plan.kind === 'gate') {
+			gatePrompt.ask({
+				title: `Bevor „${data.title}“ nach „${target.name}“ kann`,
+				description: 'Der neue Lead kommt in eine Phase mit Bedingungen:',
+				requirements: plan.requirements,
+				confirmLabel: 'Bestätigen und anlegen',
+				run: async (entries) => {
+					const ok = await store.addLead(target.id, data, entries);
+					if (!ok) return store.error;
+					open = false;
+					return null;
+				}
+			});
+			return;
+		}
 		busy = true;
 		const ok = await store.addLead(column.id, data);
 		busy = false;
@@ -230,6 +261,8 @@
 		</form>
 	</Dialog.Content>
 </Dialog.Root>
+
+<GateDialog prompt={gatePrompt} />
 
 <ConfirmDialog
 	bind:open={confirmOpen}

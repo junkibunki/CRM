@@ -39,6 +39,7 @@
 	import { relativeDay, type LastActivity } from '#lib/last-activity/format.js';
 	import { clock } from '#lib/todos/clock.svelte.js';
 	import NextTodoBadge from '#lib/todos/NextTodoBadge.svelte';
+	import GateBadge from '#lib/gates/GateBadge.svelte';
 	import type { OpenTodo } from '#lib/todos/types.js';
 	import { cn } from '#lib/utils.js';
 	import {
@@ -58,9 +59,12 @@
 		closed?: boolean;
 		/** latest activity (F4), only passed when the card field is on */
 		lastActivity?: LastActivity;
+		/** F12: labels of requirements of the lead's stage it has not fulfilled (warning) */
+		gateOpen?: string[];
 		onopen: (lead: Lead) => void;
 	};
-	let { lead, fields, nextTodo, closed = false, lastActivity, onopen }: Props = $props();
+	let { lead, fields, nextTodo, closed = false, lastActivity, gateOpen = [], onopen }: Props =
+		$props();
 	const activityAgo = $derived(lastActivity ? relativeDay(lastActivity.occurred_at, clock.now) : '');
 
 	let el = $state<HTMLElement>();
@@ -139,6 +143,9 @@
 		)}
 	>
 		<p class="leading-snug font-medium break-words">{lead.title}</p>
+		{#if gateOpen.length}
+			<GateBadge labels={gateOpen} />
+		{/if}
 		{#if company}
 			<p class="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
 				<Building2Icon class="size-3 shrink-0" />{company}
