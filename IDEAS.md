@@ -203,9 +203,164 @@ wurden. Jeder Punkt mit Datei, Szenario und Vorschlag.
 **Status:** Idee · E-Mails automatisch aus dem Postfach (Outlook/IMAP) als Aktivitäten
 übernehmen; Zuordnung Mail → Lead über die Kontakt-Adressen. Bis dahin: manuell (F3).
 
+---
+
+## F7 – To-Dos pro Lead, nächstes To-Do auf der Karte
+
+**Status:** offen · **Abhängig von:** – (Kern); F2 und F3 für die Einbindung (siehe unten)
+· **Migration reserviert:** `1793190001_todos.js`
+
+**Ziel:** Zu jedem Lead lassen sich To-Dos mit Datum anlegen. Entscheidend ist das
+**nächste offene To-Do**: sein Datum steht auf der Kanban-Karte, damit man sofort sieht, ob
+etwas ansteht, heute fällig ist oder schon in der Vergangenheit liegt. To-Dos können
+direkt aus Notizen entstehen.
+
+**Datenmodell (Vorschlag)** – Collection `todos`
+| Feld | Typ | Bemerkung |
+|---|---|---|
+| `lead` | Relation → leads, Pflicht, cascade | |
+| `title` | text, Pflicht, max. 300 | |
+| `due` | date, Pflicht | Fälligkeit; ohne Uhrzeit als `YYYY-MM-DD 00:00:00Z` gespeichert |
+| `due_has_time` | bool | `true` = mit Uhrzeit (lokal eingegeben, als UTC gespeichert) |
+| `done` | bool | |
+| `done_at` | date | beim Abhaken gesetzt, beim Zurücknehmen geleert |
+| `source_activity` | Relation → activities, optional, **ohne** cascade | Notiz, aus der das To-Do entstand; Notiz gelöscht → Feld wird leer, To-Do bleibt |
+| `created_by` | Relation → users, Pflicht | per Rule `= @request.auth.id` |
+| `created`, `updated` | autodate | |
+
+Kein eigenes Zuständig-Feld: **zuständig ist immer der Zuständige des Leads** (`lead.owner`).
+Rules wie überall: alle Angemeldeten dürfen alles. Index auf `(lead, done, due)`.
+
+**Phase „abgeschlossen"** – neues Feld `board_columns.closed` (bool) in derselben
+Migration; die Migration setzt es für „Gewonnen" und „Verloren". Im Phasen-Dialog als
+Schalter „Abgeschlossene Phase" (dort wird kein nächster Schritt erwartet).
+`source_activity` gibt es erst mit F3; liegt F3 bei Umsetzung noch nicht vor, das Feld in
+einer eigenen Migration nachziehen (Nummer `1793190002_todos_source.js` reserviert).
+
+**„Nächstes To-Do"** = offenes To-Do (`done = false`) mit der frühesten Fälligkeit. Ein To-Do
+ohne Uhrzeit zählt innerhalb seines Tages vor denen mit Uhrzeit; bei Gleichstand das zuerst
+angelegte.
+
+**Fälligkeit:** ohne Uhrzeit überfällig ab dem nächsten Tag (lokales Datum), mit Uhrzeit ab
+diesem Zeitpunkt; „heute" = lokaler heutiger Tag.
+
+**Performance:** nicht pro Karte abfragen. Das Board lädt mit **einer** Abfrage alle offenen
+To-Dos der Pipeline (`done = false && lead.column.board = {:id}`, nur die Felder
+`id,lead,title,due`) über `liveSync()` und bildet daraus im Client eine Map
+Lead → nächstes To-Do. Erledigte To-Dos lädt nur die Detailseite.
+
+**Akzeptanzkriterien**
+* **Karte:** neues Kartenfeld „Nächstes To-Do" (in den Pipeline-Einstellungen
+  abschaltbar) mit Datum (ggf. Uhrzeit) und gekürztem Titel; Farbe nach Lage: **überfällig** rot,
+  **heute** hervorgehoben, **künftig** neutral. Lokales Datum, springt um Mitternacht um
+  (wie das Abschlussdatum). Ohne offenes To-Do: dezenter grauer Hinweis „Kein nächster
+  Schritt" — außer in abgeschlossenen Phasen.
+* **Komponente `<TodoList leadId={string} />`** (Schnittstelle für F2): offene To-Dos nach
+  Datum sortiert, erledigte eingeklappt darunter; abhaken / zurücknehmen mit einem Klick,
+  Titel und Fälligkeit inline ändern, löschen mit Bestätigung; neues To-Do mit Titel +
+  Datum (Schnellwahl: heute, morgen, nächste Woche) + optionaler Uhrzeit.
+* **Schnellansicht (F1):** zeigt das nächste To-Do mit Häkchen zum Abhaken und
+  „+ To-Do".
+* **Aus Notizen entstehen (mit F3):** an jeder Notiz / Meeting-Notiz ein Button „To-Do
+  daraus anlegen"; markierter Text (sonst der Betreff) wird als Titel vorbelegt, das
+  To-Do verweist per `source_activity` auf die Notiz. In der To-Do-Liste ein Link „aus
+  Notiz vom …", in der Notiz ein Hinweis auf die daraus entstandenen To-Dos.
+* Alles live für alle Nutzer, auch nach Reconnect; Speichern nur geänderter Felder.
+
+**Besitzt:** `pocketbase/pb_migrations/1793190001_todos.js` (+ ggf. `…0002`),
+`web/src/lib/todos/` (neu: Store für eine Pipeline und für einen Lead, `TodoList.svelte`,
+`TodoForm.svelte`, `NextTodoBadge.svelte`, eigene `types.ts`)
+**Darf ändern:** `web/src/lib/kanban/KanbanCard.svelte` (Badge einbinden),
+`web/src/routes/leads/+page.svelte` (Store der offenen To-Dos starten und an das Board
+reichen), `web/src/lib/kanban/ColumnDialog.svelte` (Schalter „Abgeschlossene Phase"),
+`web/src/lib/board.svelte.ts` (nur `closed` in `addColumn`/`updateColumn` durchlassen),
+`web/src/lib/kanban/KanbanBoard.svelte` und `KanbanColumn.svelte` nur zum
+Durchreichen der Map — **Achtung:** `KanbanBoard.svelte` gehört auch F1; F1 und F7 deshalb
+nicht gleichzeitig, oder F7 erst nach F1.
+**Zentral vorab (nicht vom Agenten):** in `web/src/lib/types.ts` `CARD_FIELDS` um
+`next_todo` und `BoardColumn` um `closed: boolean` ergänzen.
+
+**Integration danach:** F2 bindet `<TodoList>` als Kachel ein; F1 zeigt das nächste To-Do;
+mit F3 der Button „To-Do daraus anlegen".
+
+**Entscheidungen (geklärt)**
+* Datum **mit optionaler Uhrzeit**.
+* Zuständig ist **immer der Zuständige des Leads** (kein eigenes Feld, keine Delegation).
+* Lead ohne offenes To-Do: **dezenter Hinweis**, nicht in abgeschlossenen Phasen.
+* Übersicht „Meine To-Dos" → eigenes Feature **F8**.
+
+---
+
+## F8 – Übersicht „Meine To-Dos"
+
+**Status:** Idee · **Abhängig von:** F7
+
+* Eigene Seite in der Navigation: alle offenen To-Dos der Leads, für die ich zuständig bin,
+  gruppiert nach **überfällig**, **heute**, **diese Woche**, **später**; umschaltbar auf
+  „alle Nutzer".
+* Abhaken direkt in der Liste; Klick auf den Lead öffnet die Schnellansicht (F1) bzw. die
+  Detailseite (F2).
+* Zähler in der Navigation (überfällig + heute).
+* Später optional: tägliche E-Mail-Erinnerung (PocketBase-Cron-Hook, siehe
+  `docs/pitfalls/pocketbase-hooks.md`).
+
+---
+
+## F9 – Kontakt aus E-Mail-Adresse anlegen (Vorschläge für Name und Unternehmen)
+
+**Status:** Idee · **Abhängig von:** – · Stufen einzeln umsetzbar
+
+**Ziel:** Beim Anlegen eines Kontakts genügt die E-Mail-Adresse; Vorname, Nachname und
+Unternehmen werden **vorgeschlagen** (nicht stumm angelegt), der Nutzer bestätigt oder
+korrigiert.
+
+**Stufe 1 – deterministisch, im Client (klein)**
+* Name aus dem lokalen Teil: `anna.mueller@`, `anna_mueller@`, `anna-mueller@` →
+  „Anna" / „Mueller"; Großschreibung, Doppelnamen (`hans-peter.schmidt`). Umlaute nur als
+  Vorschlag (`mueller` → „Müller?"), weil nicht eindeutig. `a.mueller@` → nur Nachname;
+  `annamueller@` → kein Vorschlag (nicht trennbar).
+* Rollen-Adressen (`info@`, `vertrieb@`, `kontakt@`, `office@`, `noreply@` …) → kein Name.
+* Domain → **vorhandenes Unternehmen** vorauswählen (Abgleich mit `companies.website`,
+  ohne `www.`). Freemail-Domains (gmail, gmx, web.de, outlook, t-online, icloud …) → kein
+  Unternehmen.
+* Unbekannte Firmen-Domain → Vorschlag „Neues Unternehmen: <domain>" mit Website.
+
+**Stufe 2 – Website lesen, serverseitig (mittel)**
+* Neue Route als PocketBase-Hook (Browser kann fremde Seiten wegen CORS nicht laden):
+  ruft `https://<domain>` und `/impressum` ab, liest `og:site_name`, `<title>`, und aus dem
+  Impressum per Muster Firmenname mit Rechtsform (GmbH, AG, KG, UG …), Adresse, Telefon.
+  Vorschlag im Dialog, Übernahme per Klick.
+* **Kein Google-Scraping:** verstößt gegen die Nutzungsbedingungen und wird geblockt; die
+  Domain aus der E-Mail führt ohnehin direkt zur Website. Falls eine Suche nötig wird: eine
+  offizielle Such-API (kostenpflichtig) oder Handelsregister-Daten (z. B. North Data, API).
+* **Sicherheit (Pflicht):** die Route darf nur die Domain aus der E-Mail abrufen, nur
+  `https`, keine IP-Literale, kein `localhost`/interne Namen, kurze Timeouts, Größenlimit
+  (z. B. 1 MB), keine Weiterleitung auf andere Hosts — sonst kann jeder Nutzer den Server
+  interne Adressen abfragen lassen (SSRF). Hook-Fallstricke: `docs/pitfalls/pocketbase-hooks.md`.
+
+**Stufe 3 – KI-Extraktion (optional, klein)**
+* Text von Startseite + Impressum an die Claude-API, strukturierte Antwort (Name,
+  Rechtsform, Adresse, Branche, Kurzbeschreibung). Robuster als Regex bei ungewöhnlichen
+  Seiten; kostet Bruchteile eines Cents pro Abruf, braucht einen API-Key auf dem Server.
+
+**Akzeptanzkriterien**
+* E-Mail eingeben → Vorschläge erscheinen sofort (Stufe 1) bzw. nach kurzer Zeit mit
+  Ladeanzeige (Stufe 2/3); nichts wird ohne Bestätigung angelegt.
+* Vorhandene Unternehmen werden erkannt, nie doppelt angelegt (Domain-Abgleich).
+* Auch im Lead-Dialog („+ Neu" bei Kontakten) nutzbar.
+
+**Besitzt:** `web/src/lib/crm/email-suggest.ts` (neu, Stufe 1, mit Unit-Tests der
+Muster), `pocketbase/pb_hooks/company-lookup.pb.js` + `company-lookup-lib.js` (Stufe 2/3)
+**Darf ändern:** `web/src/lib/crm/ContactDialog.svelte`, `web/src/lib/crm/CompanyDialog.svelte`
+
+---
+
 ## Reihenfolge / Parallelisierung
 
 * **Parallel startbar:** F1, F2, F3 (disjunkte Dateien; F2 nutzt bis F3 fertig ist einen
   Platzhalter).
-* **Danach:** Integration F2 + F3 (Platzhalter durch `ActivityTimeline` ersetzen), dann F4.
+* **F7** kann parallel zu F2 und F3 laufen, aber **nach F1** (beide ändern
+  `KanbanBoard.svelte`).
+* **Danach:** Integration F2 + F3 + F7 (Platzhalter durch `ActivityTimeline` und
+  `TodoList` ersetzen, „To-Do aus Notiz"), dann F4.
 * Nach jedem Feature: zentrale Doku-Zusammenführung (CLAUDE.md-Struktur, Pitfalls).
