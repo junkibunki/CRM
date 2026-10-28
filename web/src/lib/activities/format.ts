@@ -69,6 +69,22 @@ export function dayLabel(key: string, now = new Date()): string {
 	return dayFormat.format(day);
 }
 
+/**
+ * Calls `onDay(now)` whenever the local calendar day has changed, checked every `every` ms
+ * (so "Heute"/"Gestern" flip at midnight without a reload). Returns the teardown.
+ */
+export function watchDay(onDay: (now: Date) => void, every = 60_000): () => void {
+	let last = dayKey(toPbDate(new Date()));
+	const timer = setInterval(() => {
+		const now = new Date();
+		const key = dayKey(toPbDate(now));
+		if (key === last) return;
+		last = key;
+		onDay(now);
+	}, every);
+	return () => clearInterval(timer);
+}
+
 export type DayGroup = { key: string; label: string; items: Activity[] };
 
 /** Groups an already sorted list by local calendar day, keeping the order. */
@@ -89,6 +105,18 @@ export function groupByDay(list: Activity[], now = new Date()): DayGroup[] {
  */
 export function displayFileName(stored: string): string {
 	return stored.replace(/_[a-z0-9]{10}(\.[^.]*)?$/i, '$1');
+}
+
+/**
+ * Name of an attachment for display and download: the original file name the hook stored
+ * in `attachment_names` (F13a), otherwise the stored name without its random suffix.
+ */
+export function attachmentName(names: unknown, stored: string): string {
+	if (names && typeof names === 'object' && !Array.isArray(names) && Object.hasOwn(names, stored)) {
+		const n = (names as Record<string, unknown>)[stored];
+		if (typeof n === 'string' && n.trim()) return n;
+	}
+	return displayFileName(stored);
 }
 
 const sizeFormat = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });

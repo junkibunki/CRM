@@ -87,4 +87,15 @@ describe('URLs', () => {
 		expect(document.querySelectorAll('a').length).toBe(0); // cleaned up
 		spy.mockRestore();
 	});
+
+	it('suggests the original file name as download name (F13a)', async () => {
+		const names: string[] = [];
+		const spy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+			names.push(this.download);
+		});
+		await downloadAttachment(rec, 'pr_sentation_abcdefghij.pdf', 'Präsentation.pdf');
+		await downloadAttachment(rec, 'a.pdf');
+		expect(names).toEqual(['Präsentation.pdf', '']);
+		spy.mockRestore();
+	});
 });
