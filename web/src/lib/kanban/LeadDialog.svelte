@@ -8,7 +8,7 @@
 	import { Label } from '#lib/components/ui/label/index.js';
 	import * as Select from '#lib/components/ui/select/index.js';
 	import { auth } from '#lib/auth.svelte.js';
-	import type { BoardStore } from '#lib/board.svelte.js';
+	import type { LeadWriter } from '#lib/lead/lead.svelte.js';
 	import {
 		companies,
 		companyName,
@@ -29,7 +29,8 @@
 	} from '#lib/types.js';
 
 	type Props = {
-		store: BoardStore;
+		/** BoardStore on the board, LeadStore on the detail page */
+		store: LeadWriter;
 		/** existing lead to edit, or null to create one in `column` */
 		lead: Lead | null;
 		column: BoardColumn | null;

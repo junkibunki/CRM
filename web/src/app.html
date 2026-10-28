@@ -3,6 +3,8 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!-- links in pasted e-mails must not trigger DNS lookups (tracking via DNS) -->
+		<meta http-equiv="x-dns-prefetch-control" content="off" />
 		<meta name="text-scale" content="scale" />
 		%sveltekit.head%
 	</head>

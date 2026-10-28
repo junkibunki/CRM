@@ -1,11 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import ListTodoIcon from '@lucide/svelte/icons/list-todo';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { goto } from '$app/navigation';
-	import type { BoardStore } from '#lib/board.svelte.js';
 	import { companies, contacts, users } from '#lib/collection.svelte.js';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -16,6 +14,7 @@
 	import ContactsTile from '#lib/lead/ContactsTile.svelte';
 	import LeadHeader from '#lib/lead/LeadHeader.svelte';
 	import PlaceholderTile from '#lib/lead/PlaceholderTile.svelte';
+	import ActivityTimeline from '#lib/activities/ActivityTimeline.svelte';
 	import { LeadStore } from '#lib/lead/lead.svelte.js';
 	import type { Company, Contact } from '#lib/types.js';
 	import type { PageProps } from './$types';
@@ -98,20 +97,18 @@
 				ondelete={() => (confirmOpen = true)}
 			/>
 
-			<div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-				<!-- F3 replaces this with <ActivityTimeline leadId={lead.id} /> -->
-				<PlaceholderTile
-					class="lg:row-span-4"
-					icon={ActivityIcon}
-					title="Aktivitäten"
-					text="Aktivitäten folgen."
-				/>
-				<ContactsTile {lead} onopen={openContact} />
-				<CompanyTile companyId={lead.company} onopen={openCompany} />
-				<!-- F7: to-dos of this lead -->
-				<PlaceholderTile icon={ListTodoIcon} title="To-Dos" text="To-Dos folgen." />
-				<!-- F12: requirements of the current stage -->
-				<PlaceholderTile icon={ShieldCheckIcon} title="Bedingungen" text="Bedingungen der Phase folgen." />
+			<div class="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+				<ActivityTimeline leadId={lead.id} />
+				<!-- own column: as grid rows next to the (tall) timeline the tiles would spread out;
+				     on phones first, so contacts and company aren't buried below many activities -->
+				<aside class="order-first flex flex-col gap-4 lg:order-none">
+					<ContactsTile {lead} onopen={openContact} />
+					<CompanyTile companyId={lead.company} onopen={openCompany} />
+					<!-- F7: to-dos of this lead -->
+					<PlaceholderTile icon={ListTodoIcon} title="To-Dos" text="To-Dos folgen." />
+					<!-- F12: requirements of the current stage -->
+					<PlaceholderTile icon={ShieldCheckIcon} title="Bedingungen" text="Bedingungen der Phase folgen." />
+				</aside>
 			</div>
 		{:else}
 			<!-- first load failed (e.g. offline); liveSync loads again after the reconnect -->
@@ -126,7 +123,7 @@
 	<!-- LeadDialog edits through the store it gets; LeadStore offers the same calls
 	     (LeadWriter), see lib/lead/lead.svelte.ts -->
 	<LeadDialog
-		store={store as unknown as BoardStore}
+		{store}
 		{lead}
 		column={store.stage ?? null}
 		bind:open={editOpen}

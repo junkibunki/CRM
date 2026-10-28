@@ -12,7 +12,7 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:api": "node --test ../scripts/test-api.mjs",
+		"test:api": "node --test \"../scripts/test-api*.mjs\"",
 		"predev": "node scripts/predev.mjs",
 		"prebuild": "vitest run --reporter=dot"
 	},

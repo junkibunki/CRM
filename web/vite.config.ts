@@ -19,6 +19,11 @@ export default defineConfig({
 			adapter: adapter({ pages: '../pocketbase/pb_public', fallback: 'index.html' })
 		})
 	],
+	// tiptap is loaded lazily by the activity form; pre-bundle it so the first open of the form
+	// doesn't make Vite re-optimise and reload the page
+	optimizeDeps: {
+		include: ['@tiptap/core', '@tiptap/starter-kit']
+	},
 	// dev: forward API calls to the local PocketBase instance (PB_URL: parallel agent envs)
 	server: {
 		proxy: { '/api': PB_URL, '/_/': PB_URL }

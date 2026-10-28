@@ -288,6 +288,36 @@ describe('LeadStore: edit and delete (calls made by LeadDialog)', () => {
 		expect(store.error).not.toBe('');
 	});
 
+	it('saves contacts as a difference, keeping a contact someone else added meanwhile', async () => {
+		// the dialog opened with ['ct']; meanwhile B added 'b'; we add 'me'
+		mock.emit('leads', 'update', lead('l1', 'c1', 'a0', { contacts: ['ct', 'b'] }));
+		await store.updateLead('l1', { contacts: ['ct', 'me'] }, { contacts: ['ct'] });
+		expect(leadUpdates()[0].args).toEqual(['l1', { 'contacts+': ['me'] }]);
+		expect(store.lead?.contacts).toEqual(['ct', 'b', 'me']);
+	});
+
+	it('sends a removal as contacts- together with other changed fields', async () => {
+		mock.emit('leads', 'update', lead('l1', 'c1', 'a0', { contacts: ['a', 'b'] }));
+		await store.updateLead('l1', { title: 'Neu', contacts: ['a'] }, { title: 'l1', contacts: ['a', 'b'] });
+		expect(leadUpdates()[0].args).toEqual(['l1', { title: 'Neu', 'contacts-': ['b'] }]);
+		expect(store.lead?.contacts).toEqual(['a']);
+		expect(store.lead?.title).toBe('Neu');
+	});
+
+	it('rolls the merged contacts back when saving fails', async () => {
+		mock.emit('leads', 'update', lead('l1', 'c1', 'a0', { contacts: ['a', 'b'] }));
+		mock.fail('update', apiError(400, 'invalid'), 'leads');
+		await store.updateLead('l1', { contacts: ['a', 'b', 'me'] }, { contacts: ['a'] });
+		expect(store.lead?.contacts).toEqual(['a', 'b']);
+		expect(store.error).not.toBe('');
+	});
+
+	it('sends nothing when only the order of the contacts changed', async () => {
+		mock.emit('leads', 'update', lead('l1', 'c1', 'a0', { contacts: ['a', 'b'] }));
+		await store.updateLead('l1', { contacts: ['b', 'a'] }, { contacts: ['a', 'b'] });
+		expect(leadUpdates()).toHaveLength(0);
+	});
+
 	it('shows "gone" when an edit hits a deleted lead', async () => {
 		mock.fail('update', apiError(404, 'gone'), 'leads');
 		await store.updateLead('l1', { title: 'x' });

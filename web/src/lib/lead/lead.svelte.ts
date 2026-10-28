@@ -1,6 +1,7 @@
 import { ClientResponseError, type RecordSubscription } from 'pocketbase';
 import { auth } from '../auth.svelte';
 import type { BoardStore } from '../board.svelte';
+import { applyDelta, listDelta, same } from '../diff';
 import { liveSync } from '../live';
 import { errorMessage, pb } from '../pb';
 import { byRank, freshRanks, insertSorted, rankBetween } from '../rank';
@@ -128,16 +129,30 @@ export class LeadStore implements LeadWriter {
 	}
 
 	/** Optimistic, like the board: the response is not applied (see kanban.md, Store). */
-	async updateLead(id: string, data: Partial<LeadData>) {
+	async updateLead(id: string, data: Partial<LeadData>, initial?: Partial<LeadData>) {
 		const lead = this.lead;
 		if (id !== this.id || !lead || this.deleted) {
 			this.error = GONE;
 			return;
 		}
+		// contacts as a difference (contacts+ / contacts-), like BoardStore.updateLead, so a
+		// contact someone else added meanwhile isn't dropped by sending the whole list
+		const ours: Partial<LeadData> = { ...data };
+		const body: Record<string, unknown> = { ...data };
+		if (data.contacts && initial?.contacts) {
+			const delta = listDelta(initial.contacts, data.contacts);
+			delete body.contacts;
+			if (delta.add.length) body['contacts+'] = delta.add;
+			if (delta.remove.length) body['contacts-'] = delta.remove;
+			if (delta.add.length || delta.remove.length) ours.contacts = applyDelta(lead.contacts, delta);
+			else delete ours.contacts; // only the order differed: nothing to save
+		}
+		if (!Object.keys(body).length) return;
+		data = ours;
 		const prev = Object.fromEntries(Object.keys(data).map((k) => [k, lead[k]]));
 		Object.assign(lead, data);
 		try {
-			await pb.collection('leads').update(id, data);
+			await pb.collection('leads').update(id, body);
 		} catch (err) {
 			if (await isGone(err)) {
 				this.deleted = true;
@@ -229,9 +244,3 @@ export class LeadStore implements LeadWriter {
 	}
 }
 
-function same(a: unknown, b: unknown): boolean {
-	if (Array.isArray(a) && Array.isArray(b)) {
-		return a.length === b.length && a.every((v, i) => v === b[i]);
-	}
-	return a === b;
-}
