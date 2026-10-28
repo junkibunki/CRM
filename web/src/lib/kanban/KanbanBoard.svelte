@@ -19,6 +19,7 @@
 	import { cardDrop, columnDrop, type CardTarget } from './drop';
 	import KanbanColumn from './KanbanColumn.svelte';
 	import LeadDialog from './LeadDialog.svelte';
+	import LeadPreview from './LeadPreview.svelte';
 
 	let { store }: { store: BoardStore } = $props();
 
@@ -63,6 +64,8 @@
 	}
 
 	// dialogs; the selected record stays set after closing so the exit animation keeps its content
+	let previewOpen = $state(false);
+	let previewId = $state<string | null>(null);
 	let leadOpen = $state(false);
 	let lead = $state<Lead | null>(null);
 	let leadColumn = $state<BoardColumn | null>(null);
@@ -71,6 +74,11 @@
 	let deleteOpen = $state(false);
 	let toDelete = $state<BoardColumn | null>(null);
 
+	// a click on a card opens the quick view; "Bearbeiten" there opens the lead dialog
+	function previewLead(l: Lead) {
+		previewId = l.id;
+		previewOpen = true;
+	}
 	function openLead(l: Lead) {
 		lead = l;
 		leadColumn = null;
@@ -105,7 +113,7 @@
 			{store}
 			column={col}
 			{fields}
-			onopencard={openLead}
+			onopencard={previewLead}
 			onadd={newLead}
 			onedit={editColumn}
 			ondelete={askDeleteColumn}
@@ -116,6 +124,7 @@
 	</Button>
 </div>
 
+<LeadPreview {store} leadId={previewId} bind:open={previewOpen} onedit={openLead} />
 <LeadDialog {store} {lead} column={leadColumn} bind:open={leadOpen} />
 <ColumnDialog {column} bind:open={columnOpen} onsave={saveColumn} />
 
