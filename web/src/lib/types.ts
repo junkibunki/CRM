@@ -1,13 +1,20 @@
 import type { RecordModel } from 'pocketbase';
 
-export type CardField = 'company' | 'contacts' | 'expected_close' | 'owner' | 'next_todo';
+export type CardField =
+	| 'company'
+	| 'contacts'
+	| 'expected_close'
+	| 'owner'
+	| 'next_todo'
+	| 'last_activity';
 
 export const CARD_FIELDS: { key: CardField; label: string }[] = [
 	{ key: 'company', label: 'Unternehmen' },
 	{ key: 'contacts', label: 'Kontakte' },
 	{ key: 'expected_close', label: 'Abschlussdatum' },
 	{ key: 'owner', label: 'Zuständig' },
-	{ key: 'next_todo', label: 'Nächstes To-Do' }
+	{ key: 'next_todo', label: 'Nächstes To-Do' },
+	{ key: 'last_activity', label: 'Letzte Aktivität' }
 ];
 
 export const DEFAULT_CARD_FIELDS: CardField[] = CARD_FIELDS.map((f) => f.key);
@@ -65,7 +72,7 @@ export interface BoardColumn extends RecordModel {
 	color: ColumnColor | '';
 	wip_limit: number;
 	rank: string;
-	/** closed stage (e.g. won/lost): no next step expected; added with F7 */
+	/** closed stage (e.g. won/lost): no "Kein nächster Schritt" hint on its cards */
 	closed?: boolean;
 }
 

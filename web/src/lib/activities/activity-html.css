@@ -60,6 +60,23 @@
 	border-color: var(--border);
 }
 .activity-html img {
+	/* Tailwind preflight makes img block-level; in pasted e-mails images sit in the text */
+	display: inline;
 	max-width: 100%;
 	height: auto;
+}
+.activity-html table {
+	border-collapse: collapse;
+	width: 100%;
+}
+.activity-html th,
+.activity-html td {
+	border: 1px solid var(--border);
+	padding: 0.25rem 0.5rem;
+	vertical-align: top;
+	text-align: left;
+}
+.activity-html th {
+	background: var(--muted);
+	font-weight: 600;
 }

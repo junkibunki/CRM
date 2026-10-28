@@ -123,11 +123,15 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       │   │                      # LeadDialog, ColumnDialog, BoardSettingsDialog,
 │       │   │                      # LeadPreview (Schnellansicht), preview.ts + drop.ts (rein)
 │       │   ├── lead/              # LeadStore (ein Lead live, Phasenwechsel), Kacheln, format.ts
-│       │   ├── activities/        # ActivityStore, Timeline, Formular, Tiptap-Editor (lazy),
-│       │   │                      # sanitize.ts (DOMPurify), files.ts (Datei-Token)
+│       │   ├── activities/        # ActivityStore, Timeline, Formular, Tiptap-Editor (lazy,
+│       │   │                      # Bilder/Tabellen), sanitize.ts (DOMPurify), files.ts (Datei-Token)
+│       │   ├── todos/             # To-Dos: due.ts (Fälligkeit, rein), Pipeline-Store (eine Abfrage,
+│       │   │                      # nächstes To-Do je Lead), Lead-Store, Liste, Formular, Badge
+│       │   ├── last-activity/     # letzte Aktivität je Lead (View lead_last_activity)
 │       │   ├── test/pb-mock.ts    # PocketBase-Mock für Unit-Tests (*.test.ts neben dem Code)
 │       │   ├── crm/               # CompanyDialog, ContactDialog, email-suggest.ts (Name und
-│       │   │                      # Unternehmen aus der E-Mail, rein)
+│       │   │                      # Unternehmen aus der E-Mail, rein), company-lookup.ts
+│       │   │                      # (Website-Daten über die Hook-Route)
 │       │   ├── components/        # ConfirmDialog, PageHeader (Titel + Suche + Aktionen)
 │       │   ├── components/ui/     # shadcn-svelte, CLI-Output (nicht händisch pflegen)
 │       │   └── utils.ts           # cn() = clsx + tailwind-merge
@@ -138,6 +142,8 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 ├── pocketbase/
 │   ├── pocketbase(.exe)           # gitignored, gepinnt in scripts/get-pocketbase.sh
 │   ├── pb_migrations/             # JS-Migrationen, laufen beim Start automatisch
+│   ├── pb_hooks/                  # attachment-names (Original-Dateinamen), company-lookup
+│   │                              # (GET /api/crm/company-lookup, ruft curl auf), je *.pb.js + -lib.js
 │   ├── pb_data/                   # gitignored, die SQLite-DB
 │   └── pb_public/                 # gitignored, Build-Output
 ├── scripts/get-pocketbase.sh      # lädt das gepinnte PocketBase-Binary (+ Prüfsumme)
@@ -190,6 +196,13 @@ Ein Prozess serviert alles: PocketBase liefert `pb_public/` inkl. SPA-Fallback a
   Subscription feuert ein `create`-Event für denselben Record — ohne `findIndex`-Check
   steht der Eintrag doppelt in der Liste.
 * **`pb.authStore.record`**, nicht `.model` (seit SDK 0.22).
+* **Ein Realtime-`filter` wird gegen den Datensatz *nach* der Änderung geprüft.** Symptom: ein
+  Abo mit `done = false` bekommt das Abhaken eines To-Dos nie mit, die Karte zeigt es weiter.
+  Nach dem breiteren Kriterium abonnieren (z. B. pro Board) und im Client filtern.
+* **View-Collections senden keine Realtime-Events.** Die Basis-Collection abonnieren und die
+  betroffene View-Zeile neu lesen (`lib/last-activity/`).
+* `fields` mit Modifiern (`body:excerpt(120,true)`) und Realtime-`expand` + `fields`
+  (`*,expand.x.y`) funktionieren in Listen, Views und `subscribe`-Optionen.
 * **Ein abgelaufenes Token ergibt kein 401, sondern Gast-Antworten.** Symptom: Listen
   kommen leer zurück (200), `getOne` liefert 404, Realtime schweigt — die Seite sieht
   „leer" aus statt abgemeldet. Nur `authRefresh` antwortet mit 401. Typischer Auslöser:

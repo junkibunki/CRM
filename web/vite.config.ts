@@ -22,7 +22,13 @@ export default defineConfig({
 	// tiptap is loaded lazily by the activity form; pre-bundle it so the first open of the form
 	// doesn't make Vite re-optimise and reload the page
 	optimizeDeps: {
-		include: ['@tiptap/core', '@tiptap/starter-kit']
+		include: [
+			'@tiptap/core',
+			'@tiptap/starter-kit',
+			'@tiptap/extension-image',
+			'@tiptap/extension-table',
+			'@tiptap/pm/model'
+		]
 	},
 	// dev: forward API calls to the local PocketBase instance (PB_URL: parallel agent envs)
 	server: {

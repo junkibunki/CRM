@@ -64,6 +64,25 @@ das Programm fehlt.
 **Änderungen in `pb_hooks/` wirken erst nach einem Neustart.** PocketBase schreibt nur
 `File … changed, please restart the app manually` und läuft mit dem alten Code weiter.
 
+## Externe Abrufe, Dateien, Zustand
+
+* **`$http.send` folgt Weiterleitungen selbst — auch auf `127.0.0.1` — und hat kein
+  Größenlimit.** Für Abrufe fremder Seiten deshalb `curl` per `$os.cmd` (argv-Array, keine
+  Shell) mit `-q`, `--proto =https`, ohne `-L`, `--noproxy *`, `--max-time`, `--limit-rate`
+  (deckelt die Größe auch bei curl < 8.4, das `--max-filesize` bei chunked ignoriert); Ziel-IP
+  aus `%{remote_ip}` prüfen (`company-lookup-lib.js`). curl muss auf dem Server installiert sein.
+* `cmd.output()` wirft bei Exit-Code ≠ 0 `GoError: exit status N`, die Ausgabe ist dann weg.
+* `toString(bytes)` geht nur auf den Original-Go-Wert; auf `bytes.slice(…)` liefert es
+  `"[60,33,…]"`. Einbyte-Zeichensätze per `String.fromCharCode.apply` in Stücken dekodieren.
+* Zustand zwischen Requests (Cache, Rate-Limit) in `$app.store()`; `setFunc` macht das
+  Update atomar.
+* **`onFileDownloadRequest`: `e.request` ist `undefined`** (Symptom: `Cannot read property
+  'url' of undefined`, Antwort 400). `e.servedName` (bei Thumbs `<size>_<name>`) und
+  `e.servedPath` nutzen. Im Request-Hook vor `e.next()` hält `rec.get(field)` Strings für
+  behaltene und Objekte für neue Dateien; `rec.getUnsavedFiles()` liefert `.name`/`.originalName`.
+* Hook-Libs als reines CommonJS schreiben (`company-lookup-lib.js`), dann laufen sie in der
+  JS-VM und lassen sich in Vitest per `createRequire` testen.
+
 ## Logs
 
 **`app.logger()` schreibt nicht nach stdout**, sondern in die `_logs`-Collection; die

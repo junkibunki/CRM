@@ -12,7 +12,7 @@
 	import { cn } from '#lib/utils.js';
 	import type { ActivityStore } from './activities.svelte';
 	import { TYPE_STYLE } from './ActivityItem.svelte';
-	import { displayFileName, formatSize, fromDateTimeInput, toDateTimeInput, toPbDate } from './format';
+	import { attachmentName, formatSize, fromDateTimeInput, toDateTimeInput, toPbDate } from './format';
 	import RichTextEditor from './RichTextEditor.svelte';
 	import { isEmptyHtml } from './sanitize';
 	import {
@@ -244,12 +244,12 @@
 						{#each kept as name (name)}
 							<li class="flex items-center gap-2 rounded-md border px-2 py-1">
 								<PaperclipIcon class="size-3.5 shrink-0 text-muted-foreground" />
-								<span class="min-w-0 flex-1 truncate">{displayFileName(name)}</span>
+								<span class="min-w-0 flex-1 truncate">{attachmentName(activity?.attachment_names, name)}</span>
 								<Button
 									type="button"
 									variant="ghost"
 									size="icon-xs"
-									aria-label="{displayFileName(name)} entfernen"
+									aria-label="{attachmentName(activity?.attachment_names, name)} entfernen"
 									onclick={() => removed.push(name)}
 								>
 									<XIcon />

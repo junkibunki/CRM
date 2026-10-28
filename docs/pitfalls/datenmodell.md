@@ -10,6 +10,8 @@ Seite mit Live-Daten baust.
 | `companies` | `name`* , `website`, `email`, `phone`, `address`, `notes` | – |
 | `contacts` | `last_name`*, `first_name`, `position`, `email`, `phone`, `notes` | `company` → companies (optional) |
 | `activities` | `type`* (`note`, `meeting`, `email_in`, `email_out`), `body`* (HTML, ≤ 1 MB), `occurred_at`*, `subject`, `attachments` (≤ 10 × 20 MB, **protected**) | `lead`* → leads (cascade), `contacts` → contacts, `author`* → users |
+| `todos` | `title`*, `due`*, `due_has_time`, `done`, `done_at` | `lead`* → leads (cascade), `source_activity` → activities (ohne cascade), `created_by`* → users |
+| `lead_last_activity` | View: je Lead die letzte Aktivität (Art, Zeitpunkt, Auszug) | nur lesbar, keine Realtime-Events |
 | `leads` | `title`*, `expected_close` (optional), `rank`* | `company`* → companies, `contacts`* → contacts (1–50), `owner`* → users, `column`* → board_columns |
 
 `*` = Pflicht. `created`/`updated` sind `autodate`-Felder; das Erstellungsdatum eines
@@ -33,8 +35,10 @@ Sperren eines Mitarbeiters genügt es, sein Passwort zu ändern.
   `leads.contacts` heraus.
 * **Kontakt, der der einzige eines Leads ist:** `400` wie oben.
 * **Phase löschen** löscht ihre Leads mit (cascade); der Dialog sagt, wie viele.
-* **Lead löschen** löscht seine Aktivitäten mit (cascade). Ein gelöschter Kontakt
-  verschwindet nur aus `activities.contacts`.
+* **Lead löschen** löscht seine Aktivitäten und To-Dos mit (cascade). Eine gelöschte Notiz
+  lässt ihre To-Dos stehen und leert `source_activity`. Konten mit To-Dos (`created_by`)
+  lassen sich nicht löschen.
+* **Kontakt löschen** entfernt ihn auch aus `activities.contacts`.
 * **Konten mit Aktivitäten** lassen sich (wie bei `leads.owner`) nicht löschen:
   `activities.author` ist Pflicht ohne cascade.
 
@@ -44,7 +48,16 @@ Sperren eines Mitarbeiters genügt es, sein Passwort zu ändern.
 * **Feld unveränderlich:** `@request.body.author:isset = false || @request.body.author = author`.
   PocketBase normalisiert Modifier (`author+`, `+author`) vor der Rule; Fälschungsversuche
   darüber wurden im Review geprüft und abgewiesen.
-* **`lead` einer Aktivität ist per API noch änderbar** (die UI bietet es nicht an), siehe F13.
+* `lead` und `author` einer Aktivität sind unveränderlich (Muster oben). `+lead` passiert die
+  Rule bei einer Einfach-Relation, PocketBase behält aber den alten Wert.
+* **Feld nur durch Hook:** `activities.attachment_names` (gespeicherter → Original-Name) schreibt
+  nur der Hook; Create/Update-Rules enthalten `@request.body.attachment_names:isset = false`.
+* **Relation im Request-Body folgen:** `@request.body.source_activity.lead = @request.body.lead`
+  (eine To-Do-Quelle muss zum selben Lead gehören) funktioniert in 0.40.
+* `board_columns.closed`: abgeschlossene Phase (Gewonnen/Verloren), dort kein Hinweis
+  „Kein nächster Schritt".
+* `users.name` ist Pflicht (Pattern `\S`); Konten ohne Namen hat die Migration mit „Ohne Namen
+  (abc123)" gefüllt, sonst schlüge jedes spätere Speichern (z. B. Passwort-Reset) fehl.
 
 ## Daten im Client: `LiveCollection` (`lib/collection.svelte.ts`)
 

@@ -14,6 +14,8 @@ export interface Activity extends RecordModel {
 	contacts: string[];
 	/** stored file names (protected: download needs a file token) */
 	attachments: string[];
+	/** stored name -> original name; written only by the attachment-names hook */
+	attachment_names?: Record<string, string> | null;
 	author: string;
 	created: string;
 	updated: string;

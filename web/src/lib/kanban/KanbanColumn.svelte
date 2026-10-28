@@ -43,8 +43,7 @@
 	};
 	let { store, column, fields, todos, activity, onopencard, onadd, onedit, ondelete }: Props =
 		$props();
-	// F4: the card field exists once `last_activity` is in CARD_FIELDS (types.ts, central)
-	const showActivity = $derived((fields as string[]).includes('last_activity'));
+	const showActivity = $derived(fields.includes('last_activity'));
 
 	const leads = $derived(store.leads[column.id] ?? []);
 	const overLimit = $derived(column.wip_limit > 0 && leads.length > column.wip_limit);

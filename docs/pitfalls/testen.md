@@ -38,7 +38,10 @@ Muss **genau einen** Namen ausgeben. Heilmittel ist ein erneutes `npm run build`
 * **`auth` ist ein Singleton und merkt sich seine letzte Session-Prüfung** (wenige Sekunden,
   siehe `refresh(maxAge)`). Tests, die eine Prüfung beim ersten Laden erwarten, rufen in
   `beforeEach` `auth.logout()` (Beispiel `live.test.ts`).
-* **Unicode-Escapes in Regexen über das Edit-Werkzeug** (`\u2028`, `\u00a0`) landen als echte
+* **Migration als Upgrade testen** (Bestandsdaten): erst mit einer Kopie von `pb_migrations`
+  ohne die neue Datei und leerem `--hooksDir` starten und Daten anlegen, dann mit allem neu
+  starten — Muster in `scripts/test-api-f13a.mjs`.
+* **Unicode-Escapes in Regexen über das Edit- und das Write-Werkzeug** (`\u2028`, `\u00a0`) landen als echte
   Zeichen in der Datei; U+2028 bricht die Zeile: „Unterminated regular expression". Solche
   Zeilen per Skript mit reinen ASCII-Escapes schreiben.
 * **`npx vitest` startet ≈ 25 s langsamer als `vitest` direkt** (Windows, gemessen: 37 s statt

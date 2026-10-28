@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { contactName, fromDateInput, toDateInput } from './types';
+import { CARD_FIELDS, DEFAULT_CARD_FIELDS, contactName, fromDateInput, toDateInput } from './types';
 
 describe('date helpers', () => {
 	it('converts a PocketBase date to an <input type="date"> value', () => {
@@ -22,5 +22,14 @@ describe('contactName', () => {
 	it('joins first and last name, skipping empty parts', () => {
 		expect(contactName({ first_name: 'Anna', last_name: 'Müller' })).toBe('Anna Müller');
 		expect(contactName({ first_name: '', last_name: 'Müller' })).toBe('Müller');
+	});
+});
+
+describe('CARD_FIELDS', () => {
+	it('offers every optional card field once, incl. next to-do and last activity', () => {
+		const keys = CARD_FIELDS.map((f) => f.key);
+		expect(new Set(keys).size).toBe(keys.length);
+		expect(keys).toEqual(expect.arrayContaining(['next_todo', 'last_activity']));
+		expect(DEFAULT_CARD_FIELDS).toEqual(keys);
 	});
 });

@@ -50,7 +50,9 @@ Schemaänderungen im Dashboard erzeugen automatisch Migrationen in `pb_migration
 
 ## Produktion (VPS)
 
-Voraussetzung: Node.js ≥ 22.17 (SvelteKit 3; `engine-strict` bricht sonst `npm install` ab).
+Voraussetzungen: Node.js ≥ 22.17 (SvelteKit 3; `engine-strict` bricht sonst `npm install` ab)
+und **`curl`** im PATH (der Abruf von Unternehmensdaten von Websites läuft darüber; ohne curl
+meldet die Funktion „curl fehlt", der Rest der App läuft normal).
 Vom Repo-Root aus:
 
 ```bash

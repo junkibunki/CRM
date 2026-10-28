@@ -33,9 +33,17 @@ HTML aus Nutzereingaben anzeigst oder Dateifelder mit `protected: true` nutzt.
   Lade-Hinweis daneben setzen.
 * Der Editor wird nur im Formular per dynamischem Import geladen (eigener Chunk ≈ 380 KB).
   Damit der Dev-Server beim ersten Öffnen nicht neu optimiert und die Seite neu lädt, stehen
-  `@tiptap/core` und `@tiptap/starter-kit` in `optimizeDeps.include` (`web/vite.config.ts`).
-* StarterKit hat keine Image- und Table-Extension, Überschriften nur h2/h3: solche Inhalte
-  (z. B. per API gespeichert) gehen beim Bearbeiten verloren — siehe F13 in `IDEAS.md`.
+  die Tiptap-Pakete in `optimizeDeps.include` (`web/vite.config.ts`) — bei einer neuen
+  Extension dort ergänzen.
+* Geladen sind StarterKit, Image (inline; im Editor nur `data:`-Bilder sichtbar, andere als
+  Platzhalter), die Tabellen-Teile und Überschriften h1–h6. `colspan`/`rowspan` werden beim
+  Parsen auf 1–99 begrenzt (sonst: Stack-Overflow beim Öffnen).
+* **Tiptaps `getHTML()` lädt externe Bilder:** es baut `<img>` im Seitendokument, und ein
+  `<img>` lädt sein `src` auch ungehängt (Tracking beim Bearbeiten). Das eigene `editorHtml()`
+  serialisiert in `document.implementation.createHTMLDocument()`, das nichts lädt.
+* **Tabellen im Bereiniger:** erlaubt sind table/thead/tbody/tfoot/tr/th/td, `colspan`/`rowspan`
+  nur 1–99 und in `ADD_URI_SAFE_ATTR` (sonst verwirft das eigene `ALLOWED_URI_REGEXP` sie);
+  kein style/width/background.
 
 ## Geschützte Dateien (`protected: true`)
 
@@ -45,7 +53,12 @@ HTML aus Nutzereingaben anzeigst oder Dateifelder mit `protected: true` nutzt.
 * **Der Record kennt nur Dateinamen, keine Größe.** Größe per `HEAD …?token=` aus
   `content-length`.
 * **Gespeicherte Namen sind umgebaut:** kleingeschrieben, Umlaute → `_`, Suffix
-  `_<10 Zeichen>`; `Content-Disposition` nennt den Namen mit Suffix. Den Originalnamen gibt
-  es nicht mehr (F13).
+  `_<10 Zeichen>`. **Den Originalnamen** schreibt der Hook `attachment-names` in
+  `attachment_names`; `onFileDownloadRequest` setzt ihn als Download-Namen (`e.servedName`).
+  Browser schicken `"` in Multipart-Dateinamen als `%22`.
+* **PocketBase maskiert in `Content-Disposition` Zeichen, die Go für nicht druckbar hält**
+  (U+00A0, U+202F, U+2028 …) als wörtliches `\u00a0` — der Hook macht Unicode-Leerzeichen zu
+  `" "` und entfernt U+00AD/U+061C/U+2028/U+2029. Beim Kürzen auf 200 Zeichen bleibt die
+  Endung erhalten.
 * Datei-Antworten kommen mit `Content-Disposition: attachment` und einer Sandbox-CSP, auch
   für hochgeladenes HTML/SVG.
