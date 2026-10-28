@@ -146,7 +146,8 @@ keine Autor-Beschränkung). `author` bleibt beim Bearbeiten unverändert (Rule:
 **Besitzt:** `pocketbase/pb_migrations/1793190000_activities.js` (neu),
 `web/src/lib/activities/` (neu: Store, `ActivityTimeline.svelte`, `ActivityForm.svelte`,
 `ActivityItem.svelte`, eigene `types.ts`)
-**Darf ändern:** `scripts/seed-dev.mjs` (Demo-Aktivitäten anhängen, am Ende der Datei)
+**Darf ändern:** – (Demo-Aktivitäten in eigener Datei `scripts/seed/activities.mjs`, siehe
+Welle 0)
 **Zentral vorab (nicht vom Agenten):** `@tiptap/core`, `@tiptap/starter-kit`,
 `@tiptap/extension-link`, `dompurify` in `web/package.json`.
 
@@ -499,15 +500,98 @@ und `KanbanColumn.svelte` (Badge, Schloss), `web/src/lib/kanban/LeadDialog.svelt
 
 ---
 
-## Reihenfolge / Parallelisierung
+## Umsetzungsplan: Wellen mit parallelen Sub-Agents
 
-* **Parallel startbar:** F1, F2, F3 (disjunkte Dateien; F2 nutzt bis F3 fertig ist einen
-  Platzhalter).
-* **F7** kann parallel zu F2 und F3 laufen, aber **nach F1** (beide ändern
-  `KanbanBoard.svelte`).
-* **F9** ist unabhängig und jederzeit startbar; **F10 erst nach F9** (gleiche Dialoge).
-* **F12 erst nach F7** (gleiche Board-Dateien); die Bedingungen-Kachel auf der Detailseite
-  kommt mit der Integration nach F2.
-* **Danach:** Integration F2 + F3 + F7 (Platzhalter durch `ActivityTimeline` und
-  `TodoList` ersetzen, „To-Do aus Notiz"), dann F4.
-* Nach jedem Feature: zentrale Doku-Zusammenführung (CLAUDE.md-Struktur, Pitfalls).
+Grundidee: Innerhalb einer Welle fasst **keine Datei mehr als ein Agent** an. Was mehrere
+Features berühren (Board-Dateien, `types.ts`, `package.json`, Doku), kommt entweder in eine
+spätere Welle oder wird zentral vom Orchestrator (Haupt-Session) erledigt.
+
+### Überschneidungen (Grund für die Wellen)
+
+| Datei | F1 | F5 | F7+F4 | F12 | F9 | F10 | F2 | F8 |
+|---|---|---|---|---|---|---|---|---|
+| `kanban/KanbanBoard.svelte` | ✎ | | ✎ | ✎ | | | | |
+| `kanban/KanbanCard.svelte`, `KanbanColumn.svelte` | | | ✎ | ✎ | | | | |
+| `kanban/ColumnDialog.svelte` | | | ✎ | ✎ | | | | |
+| `kanban/LeadDialog.svelte` | | ✎ | | ✎ | | | | |
+| `board.svelte.ts`, `routes/leads/+page.svelte` | | ✎ | ✎ | ✎ | | | | |
+| `crm/ContactDialog.svelte`, `CompanyDialog.svelte` | | | | | ✎ | ✎ | | |
+| `kanban/LeadPreview.svelte` (F1) | ★ | | ✎ | | | | | |
+| `routes/leads/[id]/` (F2) | | | ✎ | ✎ | | | ★ | |
+| `routes/+layout.svelte` (Navigation) | | | | | | | | ✎ |
+
+★ = legt die Datei an, ✎ = ändert sie. F3 (Aktivitäten) arbeitet nur in eigenen, neuen
+Dateien; in Welle 2 ändert F7 dort nur `ActivityItem.svelte` (Button „To-Do daraus").
+
+### Welle 0 – Vorbereitung (Orchestrator, nacheinander, klein)
+
+1. **Pakete** installieren: `vitest` (+ `test`-Skript), `@tiptap/core`,
+   `@tiptap/starter-kit`, `@tiptap/extension-link`, `dompurify`.
+2. **`types.ts`** vorab: `CARD_FIELDS` + `next_todo`, `BoardColumn.closed`.
+3. **Seed modular machen:** `scripts/seed-dev.mjs` lädt alle `scripts/seed/*.mjs`; jedes
+   Feature legt seine Demo-Daten in eine **eigene** Datei (z. B. `seed/activities.mjs`).
+4. **Parallele Umgebungen:** Skript `scripts/agent-env.sh <n>`, das in einem Worktree das
+   PocketBase-Binary aus dem Haupt-Checkout kopiert, eigene `pb_data` anlegt (Migrationen
+   + Seed) und Ports vergibt: PocketBase `809<n>`, Vite `517<n>` (Proxy-Ziel per
+   Umgebungsvariable statt fest `:8090`).
+5. Alles committen; erst dann starten die Agents.
+
+### Welle 1 – fünf Agents parallel
+
+| Agent | Feature | Ports | Hinweis |
+|---|---|---|---|
+| A1 | **F1** Schnellansicht | 8091 / 5171 | zeigt noch kein To-Do, keine Aktivität |
+| A2 | **F2** Detailseite | 8092 / 5172 | Platzhalter für Aktivitäten, To-Dos, Bedingungen |
+| A3 | **F3** Aktivitäten | 8093 / 5173 | größtes Feature; Seed in `seed/activities.mjs` |
+| A4 | **F5** Sammelposten | 8094 / 5174 | nur die 8 Punkte, keine neuen Features |
+| A5 | **F9** Kontakt aus E-Mail | 8095 / 5175 | mit Vitest-Tests |
+
+**Integration 1 (Orchestrator):** Branches nacheinander nach `main` mergen (F9 → F5 →
+F3 → F2 → F1), nach jedem Merge `check` + `build`; danach `ActivityTimeline` in die
+Detailseite einsetzen (kleine Änderung, eigener Review); Doku zusammenführen.
+
+### Welle 2 – zwei Agents parallel
+
+| Agent | Feature | Hinweis |
+|---|---|---|
+| B1 | **F7 + F4** To-Dos, danach letzte Aktivität | ein Agent, weil beide `KanbanCard`, `LeadPreview` und die Board-Stores ändern; `source_activity` direkt in `1793190001_todos.js` (F3 ist da). Darf zusätzlich `LeadPreview.svelte`, `routes/leads/[id]/` (To-Do-Kachel) und `activities/ActivityItem.svelte` (Button) ändern |
+| B2 | **F10** Website-Daten | nur Hook-Dateien + die beiden Dialoge |
+
+**Integration 2:** mergen, prüfen, Doku.
+
+### Welle 3 – zwei Agents parallel
+
+| Agent | Feature | Hinweis |
+|---|---|---|
+| C1 | **F12** Bedingungen pro Phase | Board-Dateien gehören jetzt allein C1; Bedingungen-Kachel auf der Detailseite |
+| C2 | **F8** Meine To-Dos | neue Route + Navigation in `+layout.svelte`; nutzt den To-Do-Store aus F7 nur lesend |
+
+**Integration 3:** mergen, Gesamttest (alle Features zusammen im Browser), Doku, Release.
+
+Nicht eingeplant: **F6** (Postfach-Anbindung, später) und **F11** (KI, nicht beauftragt).
+
+### Ablauf pro Agent
+
+1. Start mit `isolation: worktree` (eigener Branch `feature/F<n>-<name>`), Brief = der
+   Feature-Abschnitt hier + die allgemeinen Regeln oben + die zugewiesenen Ports.
+2. Umgebung: `scripts/agent-env.sh <n>`, `npm ci` im Worktree.
+3. **Browser-Tests nicht über den Playwright-MCP** (ein gemeinsamer Browser, parallel
+   belegt → „Browser is already in use"). Stattdessen `playwright-core` aus dem npx-Cache
+   headless per Skript gegen die eigenen Ports (siehe `docs/pitfalls/testen.md`, „Ausweg").
+4. Fertig = `check` + `build` grün, eigene Tests grün, Akzeptanzkriterien geprüft;
+   **noch nicht committen**, sondern Bericht: geänderte Dateien, Migrationen, Testnachweis,
+   „Notizen für die Doku", offene Punkte.
+5. **Review** (Orchestrator startet einen unabhängigen Reviewer nur mit der Anforderung,
+   wie in CLAUDE.md). Findings gehen per Nachricht an denselben Agenten zurück.
+   **Höchstens zwei Review-Runden**; danach verbleibende „minor"-Punkte in einen neuen
+   Sammelposten (F13) statt weiterer Schleifen. Blockierendes wird immer behoben.
+6. Bei grünem Review committet der Agent auf seinem Branch; der Orchestrator merged.
+
+### Regeln gegen Reibung
+
+* Datei nicht im „Besitzt/Darf ändern" des eigenen Features → **nicht anfassen**, sondern
+  im Bericht als Bedarf melden.
+* Keine Änderungen an `CLAUDE.md`, `README.md`, `types.ts`, `package.json`, Lockfile.
+* Migrationen nur mit der reservierten Nummer; nie eine fremde Migration ändern.
+* Nach einem Merge, der ein spätere Welle betrifft, starten deren Agents vom neuen `main`.
+* Größe: Welle 1 = 5 Umsetzer + bis zu 5 Reviewer gleichzeitig; Wellen 2 und 3 je 2 + 2.
