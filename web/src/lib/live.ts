@@ -2,6 +2,11 @@ import type { UnsubscribeFunc } from 'pocketbase';
 import { auth } from './auth.svelte';
 import { pb } from './pb';
 
+// A page often starts its live sources one after another (the leads page: board lookup,
+// then the board). For a first load, a session check this young is reused instead of
+// asking again; reloads after a reconnect always check.
+const SESSION_REUSE_MS = 5_000;
+
 type Options<T> = {
 	/** Register realtime subscriptions; route every event through `handle`. */
 	subscribe: (handle: (apply: () => void) => void) => Promise<UnsubscribeFunc>[];
@@ -42,8 +47,9 @@ export function liveSync<T>(opts: Options<T>): () => void {
 		queue ??= [];
 		try {
 			// With an invalid session PocketBase answers as for a guest (empty lists, 404), so
-			// check it before every load, the first one included; refresh() logs out if needed.
-			if (!(await auth.refresh())) return;
+			// check it before every load, the first one included (which may reuse a check from
+			// the last few seconds); refresh() logs out if needed.
+			if (!(await auth.refresh(loadedOnce ? 0 : SESSION_REUSE_MS))) return;
 			const data = await opts.fetch();
 			if (stopped || mine !== generation) return;
 			opts.apply(data, !loadedOnce);

@@ -1,13 +1,17 @@
 import { ClientResponseError, type RecordSubscription } from 'pocketbase';
 import { auth } from './auth.svelte';
+import { applyDelta, listDelta, same } from './diff';
 import { liveSync } from './live';
 import { errorMessage, pb } from './pb';
-import { freshRanks, insertSorted, rankBetween } from './rank';
+import { byRank, freshRanks, insertSorted, rankBetween } from './rank';
 import { type Board, type BoardColumn, type Lead, type LeadData } from './types';
 
 // Keys grow by about a character every few inserts at the same spot; well below the
 // schema's max of 100, re-rank the list instead of letting the save fail.
 const MAX_RANK_LENGTH = 50;
+
+const COLUMN_GONE = 'Die Phase wurde inzwischen gelöscht, die Änderungen sind nicht gespeichert.';
+const LEAD_GONE = 'Der Lead wurde inzwischen gelöscht, die Änderungen sind nicht gespeichert.';
 
 /**
  * The record no longer exists (deleted by someone else). A 404 can also mean our session
@@ -17,6 +21,26 @@ const MAX_RANK_LENGTH = 50;
 async function isGone(err: unknown) {
 	if (!(err instanceof ClientResponseError && err.status === 404)) return false;
 	return auth.refresh();
+}
+
+/**
+ * A failed create or re-rank may mean our session became invalid (PocketBase answers a guest with
+ * 400/403/404): check it, so the user is sent to the login instead of seeing a generic error.
+ */
+async function checkSession(err: unknown) {
+	if (err instanceof ClientResponseError && [400, 403, 404].includes(err.status)) {
+		await auth.refresh();
+	}
+}
+
+/**
+ * Undoes a failed optimistic update: only fields that still hold our value. A field that
+ * changed since (realtime event of someone else) keeps the newer value.
+ */
+function rollback<T extends object>(target: T, prev: Partial<T>, ours: Partial<T>) {
+	for (const key of Object.keys(ours) as (keyof T)[]) {
+		if (same(target[key], ours[key])) target[key] = prev[key] as T[keyof T];
+	}
 }
 
 /**
@@ -183,18 +207,45 @@ export class BoardStore {
 		index: number,
 		collection: 'leads' | 'board_columns'
 	): Promise<string> {
-		const between = () => rankBetween(list[index - 1]?.rank ?? null, list[index]?.rank ?? null);
+		// `list` may be a live list (addLead, addColumn) that realtime changes during the
+		// awaits below; keys, old ranks and results are matched by position in this snapshot
+		const items = [...list];
+		const between = () => rankBetween(items[index - 1]?.rank ?? null, items[index]?.rank ?? null);
 		const rank = between();
 		if (rank !== null && rank.length <= MAX_RANK_LENGTH) return rank;
 		// colliding neighbours or keys grown too long: give the whole list fresh keys
-		const keys = freshRanks(list.length);
-		await Promise.all(
-			list.map((item, i) => {
+		const keys = freshRanks(items.length);
+		const prev = items.map((item) => item.rank);
+		const results = await Promise.allSettled(
+			items.map((item, i) => {
 				item.rank = keys[i];
 				return pb.collection(collection).update(item.id, { rank: keys[i] });
 			})
 		);
+		let failure: unknown = null;
+		items.forEach((item, i) => {
+			const r = results[i];
+			if (r.status === 'fulfilled') return;
+			failure ??= r.reason;
+			// the server kept the old key; mirror it unless realtime moved it meanwhile
+			if (item.rank === keys[i]) item.rank = prev[i];
+		});
+		// Every item now holds the rank the server has (the moved one was never changed), but
+		// the live list(s) are out of order: the item being moved still sits at its old place,
+		// and after a partial failure old and fresh keys are mixed. Sort them as the server does.
+		this.sortLive(collection, items);
+		if (failure !== null) throw failure;
 		return between()!;
+	}
+
+	/** Re-sorts, in place, the live list(s) the items of a re-rank belong to (rank, then id). */
+	private sortLive(collection: 'leads' | 'board_columns', items: { id: string }[]) {
+		if (collection === 'board_columns') {
+			this.columns.sort(byRank);
+			return;
+		}
+		const cols = new Set(items.map((item) => (item as Lead).column));
+		for (const col of cols) this.leads[col]?.sort(byRank);
 	}
 
 	clearError() {
@@ -214,7 +265,7 @@ export class BoardStore {
 				this.deleted = true;
 				return;
 			}
-			Object.assign(this.board, prev);
+			rollback(this.board, prev, data);
 			this.fail(err);
 		}
 	}
@@ -230,20 +281,28 @@ export class BoardStore {
 			this.leads[rec.id] ??= [];
 			if (!this.columns.some((c) => c.id === rec.id)) insertSorted(this.columns, rec);
 		} catch (err) {
+			await checkSession(err);
 			this.fail(err);
 		}
 	}
 
 	async updateColumn(id: string, data: Partial<Pick<BoardColumn, 'name' | 'color' | 'wip_limit'>>) {
 		const col = this.columns.find((c) => c.id === id);
-		if (!col) return;
+		if (!col) {
+			this.error = COLUMN_GONE;
+			return;
+		}
 		const prev = { name: col.name, color: col.color, wip_limit: col.wip_limit };
 		Object.assign(col, data);
 		try {
 			await pb.collection('board_columns').update(id, data);
 		} catch (err) {
-			if (await isGone(err)) return this.removeColumn(id);
-			Object.assign(col, prev);
+			if (await isGone(err)) {
+				this.removeColumn(id);
+				this.error = COLUMN_GONE;
+				return;
+			}
+			rollback(col, prev, data);
 			this.fail(err);
 		}
 	}
@@ -272,6 +331,7 @@ export class BoardStore {
 				'board_columns'
 			);
 		} catch (err) {
+			await checkSession(err); // a failed re-rank update may be a guest answer
 			return this.fail(err);
 		}
 		// it may have been deleted during the (unlikely) re-rank await
@@ -310,32 +370,49 @@ export class BoardStore {
 			if (!this.findLead(rec.id)) insertSorted(this.leads[columnId] ?? [], rec);
 			return true;
 		} catch (err) {
+			await checkSession(err);
 			this.fail(err);
 			return false;
 		}
 	}
 
-	async updateLead(id: string, data: Partial<LeadData>) {
+	/**
+	 * Saves changed fields optimistically. With `initial` (the values the edit started from)
+	 * `contacts` is sent as the difference (`contacts+` / `contacts-`), so a contact someone
+	 * else added or removed in the meantime is kept instead of being overwritten.
+	 */
+	async updateLead(id: string, data: Partial<LeadData>, initial?: Partial<LeadData>) {
 		const loc = this.findLead(id);
 		if (!loc) {
-			this.error = 'Der Lead wurde inzwischen gelöscht, die Änderungen sind nicht gespeichert.';
+			this.error = LEAD_GONE;
 			return;
 		}
 		const lead = this.leads[loc.column][loc.index];
-		const prev = Object.fromEntries(Object.keys(data).map((k) => [k, lead[k]]));
-		Object.assign(lead, data);
+		const ours: Partial<LeadData> = { ...data };
+		const body: Record<string, unknown> = { ...data };
+		if (data.contacts && initial?.contacts) {
+			const delta = listDelta(initial.contacts, data.contacts);
+			delete body.contacts;
+			if (delta.add.length) body['contacts+'] = delta.add;
+			if (delta.remove.length) body['contacts-'] = delta.remove;
+			if (delta.add.length || delta.remove.length) ours.contacts = applyDelta(lead.contacts, delta);
+			else delete ours.contacts; // only the order differed: nothing to save
+		}
+		if (!Object.keys(body).length) return;
+		const prev = Object.fromEntries(Object.keys(ours).map((k) => [k, lead[k]])) as Partial<LeadData>;
+		Object.assign(lead, ours);
 		try {
 			// the response is deliberately not applied: the optimistic state already holds our
 			// values, and a newer edit by someone else may have arrived by realtime before it.
 			// The realtime event for our own update brings `updated` etc.
-			await pb.collection('leads').update(id, data);
+			await pb.collection('leads').update(id, body);
 		} catch (err) {
 			if (await isGone(err)) {
 				this.removeLead(id);
-				this.error = 'Der Lead wurde inzwischen gelöscht, die Änderungen sind nicht gespeichert.';
+				this.error = LEAD_GONE;
 				return;
 			}
-			Object.assign(lead, prev);
+			rollback(lead, prev, ours);
 			this.fail(err);
 		}
 	}
@@ -368,6 +445,7 @@ export class BoardStore {
 				'leads'
 			);
 		} catch (err) {
+			await checkSession(err); // a failed re-rank update may be a guest answer
 			return this.fail(err);
 		}
 		// the lists may have changed during an (unlikely) re-rank await

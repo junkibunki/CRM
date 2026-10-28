@@ -1,6 +1,20 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { changedFields } from './diff';
+import { applyDelta, changedFields, listDelta } from './diff';
+
+describe('listDelta / applyDelta', () => {
+	it('finds added and removed ids', () => {
+		expect(listDelta(['a', 'b'], ['b', 'c'])).toEqual({ add: ['c'], remove: ['a'] });
+		expect(listDelta(['a', 'b'], ['b', 'a'])).toEqual({ add: [], remove: [] });
+	});
+
+	it('applies the delta to a list that changed meanwhile, like PocketBase field+/field-', () => {
+		// someone else added "x" after we started from ['a', 'b']
+		expect(applyDelta(['a', 'b', 'x'], { add: ['c'], remove: ['a'] })).toEqual(['b', 'x', 'c']);
+		// an id that is already there is not added twice, an unknown one is not removed
+		expect(applyDelta(['a', 'c'], { add: ['c'], remove: ['z'] })).toEqual(['a', 'c']);
+	});
+});
 
 describe('changedFields', () => {
 	it('returns only fields that differ', () => {

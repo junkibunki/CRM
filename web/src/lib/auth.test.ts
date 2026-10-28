@@ -45,6 +45,40 @@ describe('auth.refresh', () => {
 		expect(mock.calls.length).toBe(before);
 	});
 
+	it('reuses a recent successful check of the same session with maxAge', async () => {
+		const count = () => mock.calls.filter((c) => c.method === 'authRefresh').length;
+		const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+		try {
+			await auth.refresh();
+			const before = count();
+			expect(await auth.refresh(5000)).toBe(true);
+			expect(count()).toBe(before); // reused
+			expect(await auth.refresh()).toBe(true);
+			expect(count()).toBe(before + 1); // without maxAge: always asks
+			now.mockReturnValue(1_000_000 + 6000);
+			await auth.refresh(5000);
+			expect(count()).toBe(before + 2); // too old: asks again
+		} finally {
+			now.mockRestore();
+		}
+	});
+
+	it('does not reuse a check across logout and login', async () => {
+		await auth.refresh();
+		auth.logout();
+		mock.reset(); // logged in again (same token in the mock)
+		mock.invalidateSession();
+		expect(await auth.refresh(5000)).toBe(false);
+		expect(mock.pb.authStore.token).toBe('');
+	});
+
+	it('does not reuse a check of a different token', async () => {
+		await auth.refresh();
+		mock.pb.authStore.token = 'other-token';
+		mock.invalidateSession();
+		expect(await auth.refresh(5000)).toBe(false);
+	});
+
 	it('shares one request between concurrent callers', async () => {
 		const before = mock.calls.filter((c) => c.method === 'authRefresh').length;
 		const results = await Promise.all([auth.refresh(), auth.refresh(), auth.refresh()]);

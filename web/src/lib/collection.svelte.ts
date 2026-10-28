@@ -124,9 +124,14 @@ export const users = new LiveCollection<User>('users', (a, b) =>
 	de(a.name || a.email, b.name || b.email)
 );
 
+/**
+ * Display name of a user. Colleagues' e-mails are hidden (`emailVisibility` off), so an
+ * account without a name gets a short id: two of them stay distinguishable in the
+ * "Zuständig" picker, and the admin finds the account in the dashboard by it.
+ */
 export function userLabel(id: string) {
 	const u = users.get(id);
-	return u ? u.name || u.email || 'Unbenannt' : '';
+	return u ? u.name || u.email || `Ohne Namen (${u.id.slice(0, 6)})` : '';
 }
 
 export function companyName(id: string) {
