@@ -862,11 +862,11 @@ noch `lib/todos/`.
 
 **Integration 3:** mergen (F8 → F12), Gesamttest, Doku.
 
-### Welle 4 – drei Agents parallel (nach Welle 3)
+### Welle 4 – läuft: F13b + F15 (F14 nach Klärung)
 
 | Agent | Feature | Ports | Besitzt / darf ändern |
 |---|---|---|---|
-| D1 | **F13b** Sammelposten | 8101 / 5181 | die in F13b genannten Dateien (`board.svelte.ts`, `lead/`, `KanbanCard`, `LeadPreview`/`preview.ts`, `ActivityItem`, `editor.ts` + `activity-html.css`, `todos/lead.svelte.ts` + `due.ts`, Kontakt-/Unternehmens-Dialoge, Dialog-Wrapper für „Schließen"); Migration `1793190007_f13b.js` (z. B. `batch.enabled`) |
+| D1 | **F13b** Sammelposten | 8101 / 5181 | die in F13b genannten Dateien (`board.svelte.ts`, `lead/`, `KanbanCard`, `LeadPreview`/`preview.ts`, `ActivityItem`, `editor.ts` + `activity-html.css`, `todos/lead.svelte.ts` + `due.ts`, Kontakt-/Unternehmens-Dialoge, Dialog-Wrapper für „Schließen"); aus Welle 3 zusätzlich `KanbanBoard` + `routes/leads/+page.svelte` (`?lead=`), `todos/MyTodoItem.svelte`, `gates/` (Badge in der Schnellansicht, Art sperren); Migration `1793190007_f13b.js` (z. B. `batch.enabled`, Rule für `stage_requirements.type`) |
 | D2 | **F14** HubSpot-Import | 8102 / 5182 | `scripts/import-hubspot.mjs`, `scripts/hubspot/` (Parser, Zuordnung, Tests mit erfundenen CSVs), Migration `1793190005_hubspot_import.js` (z. B. `hubspot_id` für zweiten Lauf ohne Dubletten), `scripts/test-api-hubspot.mjs`; **keine** Datei unter `web/` |
 | D3 | **F15** MCP-Server v1 | 8103 / 5183 | `mcp/` (eigenes `package.json`, eigene Tests), Migration `1793190006_api_tokens.js`, Hook `api-tokens.pb.js` + `-lib.js` (Token-Tausch), `web/src/routes/profil/` + `web/src/lib/tokens/` (Token-Verwaltung), Menüpunkt in `+layout.svelte`, `scripts/test-api-tokens.mjs` |
 
