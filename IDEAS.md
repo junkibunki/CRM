@@ -380,7 +380,7 @@ mit F3 der Button „To-Do daraus anlegen".
 
 ## F8 – Übersicht „Meine To-Dos"
 
-**Status:** Idee · **Abhängig von:** F7
+**Status:** in Arbeit (Welle 3) · **Abhängig von:** F7
 
 * Eigene Seite in der Navigation: alle offenen To-Dos der Leads, für die ich zuständig bin,
   gruppiert nach **überfällig**, **heute**, **diese Woche**, **später**; umschaltbar auf
@@ -389,7 +389,18 @@ mit F3 der Button „To-Do daraus anlegen".
   Detailseite (F2).
 * Zähler in der Navigation (überfällig + heute).
 * Später optional: tägliche E-Mail-Erinnerung (PocketBase-Cron-Hook, siehe
-  `docs/pitfalls/pocketbase-hooks.md`).
+  `docs/pitfalls/pocketbase-hooks.md`) — **nicht Teil von Welle 3**.
+* Performance: **eine** Live-Abfrage für alle offenen To-Dos (`liveSync()`, nach Board/Lead
+  abonnieren statt `done = false`, siehe CLAUDE.md „Realtime-Filter"), Gruppierung im Client;
+  der Zähler in der Navigation teilt sich diese Quelle, kein zweites Abo.
+
+**Besitzt:** `web/src/routes/todos/` (neu), neue Dateien in `web/src/lib/todos/` (z. B.
+`mine.svelte.ts`, `groups.ts`, `MyTodos*.svelte`, `NavCounter.svelte`, mit Tests),
+`scripts/test-api-my-todos.mjs` (falls Rules geprüft werden)
+**Darf ändern:** `web/src/routes/+layout.svelte` (Menüpunkt + Zähler),
+`web/src/lib/kanban/LeadPreview.svelte` nur, falls sie außerhalb des Boards nutzbar gemacht
+werden muss (Props, kein Umbau; sonst Link auf die Detailseite). Bestehende Dateien in
+`lib/todos/` nur lesen bzw. unverändert wiederverwenden.
 
 ---
 
@@ -495,7 +506,7 @@ und schlägt Firmenname, Adresse, Telefon und E-Mail vor.
 
 ## F12 – Bedingungen pro Phase (Stage Gates)
 
-**Status:** offen · **Abhängig von:** F7 (gleiche Dateien: `ColumnDialog`, `KanbanBoard`,
+**Status:** in Arbeit (Welle 3) · **Abhängig von:** F7 (gleiche Dateien: `ColumnDialog`, `KanbanBoard`,
 `KanbanCard`, `board.svelte.ts`) — **nach F7** umsetzen · **Migration reserviert:**
 `1793190003_stage_requirements.js`
 
@@ -577,7 +588,11 @@ Client als Map Lead → offene Bedingungen.
 **Darf ändern:** `web/src/lib/kanban/ColumnDialog.svelte` (Abschnitt Bedingungen),
 `web/src/lib/kanban/KanbanBoard.svelte` (vor `moveLead` den Gate-Dialog), `KanbanCard.svelte`
 und `KanbanColumn.svelte` (Badge, Schloss), `web/src/lib/kanban/LeadDialog.svelte` (Anlegen
-über die Route), `web/src/routes/leads/+page.svelte` (Stores starten)
+über die Route), `web/src/routes/leads/+page.svelte` (Stores starten),
+`web/src/lib/board.svelte.ts` (Anlegen über die Route, Move erst nach dem Gate),
+`web/src/routes/leads/[id]/+page.svelte` und `web/src/lib/lead/` (Kachel „Bedingungen",
+Gate-Dialog beim Phasenwechsel), jeweils mit Tests; Seed `scripts/seed/40-gates.mjs`,
+API-Tests `scripts/test-api-gates.mjs` (neu)
 
 ---
 
@@ -816,16 +831,40 @@ können von einem älteren Commit abzweigen, siehe `testen.md`).
 
 **Integration 2:** mergen, prüfen, Doku.
 
-### Welle 3 – zwei Agents parallel
+### Welle 3 – zwei Agents parallel (läuft)
 
 | Agent | Feature | Hinweis |
 |---|---|---|
-| C1 | **F12** Bedingungen pro Phase | Board-Dateien gehören jetzt allein C1; Bedingungen-Kachel auf der Detailseite |
-| C2 | **F8** Meine To-Dos | neue Route + Navigation in `+layout.svelte`; nutzt den To-Do-Store aus F7 nur lesend |
+| Agent | Feature | Ports | Hinweis |
+|---|---|---|---|
+| C1 | **F12** Bedingungen pro Phase | 8101 / 5181 | Board-Dateien, `board.svelte.ts`, `lead/` und Detailseite gehören allein C1 |
+| C2 | **F8** Meine To-Dos | 8102 / 5182 | neue Route + Navigation in `+layout.svelte`; bestehende To-Do-Dateien nur lesen |
 
-**Integration 3:** mergen, Gesamttest (alle Features zusammen im Browser), Doku, Release.
+Keine gemeinsame Datei: C2 fasst weder Board- noch Lead-Dateien an, C1 weder `+layout.svelte`
+noch `lib/todos/`.
 
-Nicht eingeplant: **F6** (Postfach-Anbindung, später) und **F11** (KI, nicht beauftragt).
+**Integration 3:** mergen (F8 → F12), Gesamttest, Doku.
+
+### Welle 4 – drei Agents parallel (nach Welle 3)
+
+| Agent | Feature | Ports | Besitzt / darf ändern |
+|---|---|---|---|
+| D1 | **F13b** Sammelposten | 8101 / 5181 | die in F13b genannten Dateien (`board.svelte.ts`, `lead/`, `KanbanCard`, `LeadPreview`/`preview.ts`, `ActivityItem`, `editor.ts` + `activity-html.css`, `todos/lead.svelte.ts` + `due.ts`, Kontakt-/Unternehmens-Dialoge, Dialog-Wrapper für „Schließen"); Migration `1793190007_f13b.js` (z. B. `batch.enabled`) |
+| D2 | **F14** HubSpot-Import | 8102 / 5182 | `scripts/import-hubspot.mjs`, `scripts/hubspot/` (Parser, Zuordnung, Tests mit erfundenen CSVs), Migration `1793190005_hubspot_import.js` (z. B. `hubspot_id` für zweiten Lauf ohne Dubletten), `scripts/test-api-hubspot.mjs`; **keine** Datei unter `web/` |
+| D3 | **F15** MCP-Server v1 | 8103 / 5183 | `mcp/` (eigenes `package.json`, eigene Tests), Migration `1793190006_api_tokens.js`, Hook `api-tokens.pb.js` + `-lib.js` (Token-Tausch), `web/src/routes/profil/` + `web/src/lib/tokens/` (Token-Verwaltung), Menüpunkt in `+layout.svelte`, `scripts/test-api-tokens.mjs` |
+
+* Warum erst nach Welle 3: F13b ändert Board-/Lead-Dateien von F12; F14 soll das `Siemens
+  Flag` als F12-Bedingung übernehmen; F15 braucht `+layout.svelte`, das in Welle 3 F8 gehört.
+* D1 fasst `+layout.svelte` nicht an, D2 nichts unter `web/`, D3 keine Board-/Lead-Dateien.
+* **Vor dem Start von D2 klären** (offene Punkte in F14): `Siemens Flag` als Bedingung, Skript
+  statt Seite, Anhänge der Notizen. Außerdem einen echten Export lokal bereitlegen (nicht im
+  Repo) für den Probelauf.
+* **Zentral (Orchestrator) bei Integration 4:** `mcp/`-Tests in `npm test`/`predev`
+  einbinden, `README` (Import-Anleitung, MCP-Dienst hinter dem Reverse-Proxy), `CLAUDE.md`
+  Struktur.
+
+Nicht eingeplant: **F6** (Postfach-Anbindung, später), **F11** (KI, nicht beauftragt),
+**F15 Version 2** (Schreib-Tools) und die E-Mail-Erinnerung aus F8.
 
 ### Ablauf pro Agent
 
