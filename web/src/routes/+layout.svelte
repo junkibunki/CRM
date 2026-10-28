@@ -14,7 +14,8 @@
 		{ href: '/leads', label: 'Leads' },
 		{ href: '/todos', label: 'To-Dos' },
 		{ href: '/kontakte', label: 'Kontakte' },
-		{ href: '/unternehmen', label: 'Unternehmen' }
+		{ href: '/unternehmen', label: 'Unternehmen' },
+		{ href: '/profil', label: 'Profil' }
 	];
 
 	const isLogin = $derived(page.url.pathname === '/login');

@@ -1,0 +1,3 @@
+node_modules/
+# per-agent log (scripts/agent-env.sh)
+mcp-agent.log
