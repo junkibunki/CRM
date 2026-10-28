@@ -3,6 +3,7 @@
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import { auth } from '#lib/auth.svelte.js';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import NavCounter from '#lib/todos/NavCounter.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { LayoutProps } from './$types';
@@ -11,6 +12,7 @@
 
 	const NAV = [
 		{ href: '/leads', label: 'Leads' },
+		{ href: '/todos', label: 'To-Dos' },
 		{ href: '/kontakte', label: 'Kontakte' },
 		{ href: '/unternehmen', label: 'Unternehmen' }
 	];
@@ -52,6 +54,7 @@
 					class="shrink-0 rounded-md px-2 py-1.5 whitespace-nowrap text-muted-foreground hover:text-foreground aria-[current=page]:bg-accent aria-[current=page]:font-medium aria-[current=page]:text-accent-foreground sm:px-3"
 				>
 					{item.label}
+					{#if item.href === '/todos'}<NavCounter />{/if}
 				</a>
 			{/each}
 		</nav>
