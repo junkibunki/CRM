@@ -527,6 +527,21 @@ Dateien; in Welle 2 ändert F7 dort nur `ActivityItem.svelte` (Button „To-Do d
 
 1. **Pakete** installieren: `vitest` (+ `test`-Skript), `@tiptap/core`,
    `@tiptap/starter-kit`, `@tiptap/extension-link`, `dompurify`.
+1b. **Test-Infrastruktur** (Regel aus CLAUDE.md: Tests immer mitentwickeln):
+   * Vitest-Konfiguration für Runes-Dateien (`*.svelte.ts`) und ein gemeinsamer
+     PocketBase-Mock (`web/src/lib/test/pb-mock.ts`: Collections, Realtime-Events,
+     Fehlerantworten 400/404, ungültige Session).
+   * `predev`: führt `vitest run` aus und zeigt das Ergebnis deutlich an, startet den
+     Dev-Server aber auch bei Fehlern (man will sie ja beheben); `prebuild`: bricht bei
+     roten Tests ab.
+   * Integrationstest-Gerüst: startet eine Wegwerf-PocketBase (eigenes `--dir`, freier
+     Port), wendet die Migrationen an, prüft API-Rules per HTTP; Skript `npm run test:api`.
+   * **Tests für den bestehenden Code nachziehen:** `rank.ts`, `diff.ts`, Datums-Helfer in
+     `types.ts`, `liveSync` (Puffer, Generationen, Reconnect, Session-Check),
+     `LiveCollection` (Dedup, veraltete Antworten, `guard`), `BoardStore` (Move-Index,
+     Self-Drop, Rollback, 404, Reconcile), Drop-Berechnung aus `KanbanBoard`
+     (als reine Funktion herausziehen), `auth.refresh` (geteilter Request, 401/404);
+     API: Gäste ohne Zugriff, keine Selbstregistrierung/Selbstlöschung, Löschsperren.
 2. **`types.ts`** vorab: `CARD_FIELDS` + `next_todo`, `BoardColumn.closed`.
 3. **Seed modular machen:** `scripts/seed-dev.mjs` lädt alle `scripts/seed/*.mjs`; jedes
    Feature legt seine Demo-Daten in eine **eigene** Datei (z. B. `seed/activities.mjs`).
@@ -578,7 +593,9 @@ Nicht eingeplant: **F6** (Postfach-Anbindung, später) und **F11** (KI, nicht be
 3. **Browser-Tests nicht über den Playwright-MCP** (ein gemeinsamer Browser, parallel
    belegt → „Browser is already in use"). Stattdessen `playwright-core` aus dem npx-Cache
    headless per Skript gegen die eigenen Ports (siehe `docs/pitfalls/testen.md`, „Ausweg").
-4. Fertig = `check` + `build` grün, eigene Tests grün, Akzeptanzkriterien geprüft;
+4. Fertig = `check` + `build` grün, **neue Unit-Tests für die eigene Logik** (und bei
+   Schema/Hooks Integrationstests) geschrieben und zusammen mit allen bestehenden Tests
+   grün (`npm test`, ggf. `npm run test:api`), Akzeptanzkriterien geprüft;
    **noch nicht committen**, sondern Bericht: geänderte Dateien, Migrationen, Testnachweis,
    „Notizen für die Doku", offene Punkte.
 5. **Review** (Orchestrator startet einen unabhängigen Reviewer nur mit der Anforderung,

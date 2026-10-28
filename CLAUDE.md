@@ -30,6 +30,21 @@ Umfang der Korrektur, nicht nach der Zahl der Findings:
 * Im Zweifel reviewen. Ein zweiter Durchlauf kostet weniger als ein Fehler, der über
   `main` auf den VPS geht.
 
+### Tests: immer mitentwickeln
+
+* **Jede Änderung bringt ihre Unit-Tests mit** (Vitest, `*.test.ts` neben der Datei). Ohne
+  Tests ist ein Feature nicht fertig; der Reviewer prüft das mit.
+* Getestet wird vor allem Logik: reine Funktionen (Rank, Diff, Datums-/Fälligkeitsregeln,
+  E-Mail-Erkennung), Stores (`BoardStore`, `LiveCollection`, `liveSync`) mit gemocktem
+  PocketBase-Client, Realtime-Merge, Rollback und Fehlerpfade. Ein behobener Bug bekommt
+  einen Test, der ihn ohne die Korrektur zeigt.
+* API-Regeln, Migrationen und Hooks: Integrationstests gegen eine **Wegwerf-PocketBase**
+  (eigenes `--dir`, eigener Port), nie gegen `pocketbase/pb_data`.
+* **`npm run dev` führt vorher die Unit-Tests aus** und zeigt das Ergebnis an, damit beim
+  Starten sichtbar ist, ob alles noch funktioniert. `npm run build` bricht bei roten Tests
+  ab. Vor jedem Commit: `npm test` grün. *(Stand: wird in Welle 0 der
+  [IDEAS.md](IDEAS.md) eingerichtet, bis dahin gibt es noch keine Tests.)*
+
 ### Pitfalls dokumentieren
 
 **Wann.** Wenn dich bei der Entwicklung etwas Zeit gekostet hat, weil es nicht
