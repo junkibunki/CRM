@@ -15,6 +15,8 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import type { BoardStore } from '#lib/board.svelte.js';
+	import type { LastActivityStore } from '#lib/last-activity/last.svelte.js';
+	import type { PipelineTodoStore } from '#lib/todos/pipeline.svelte.js';
 	import { cn } from '#lib/utils.js';
 	import {
 		COLUMN_COLORS,
@@ -32,12 +34,17 @@
 		store: BoardStore;
 		column: BoardColumn;
 		fields: CardField[];
+		todos?: PipelineTodoStore;
+		activity?: LastActivityStore;
 		onopencard: (lead: Lead) => void;
 		onadd: (column: BoardColumn) => void;
 		onedit: (column: BoardColumn) => void;
 		ondelete: (column: BoardColumn) => void;
 	};
-	let { store, column, fields, onopencard, onadd, onedit, ondelete }: Props = $props();
+	let { store, column, fields, todos, activity, onopencard, onadd, onedit, ondelete }: Props =
+		$props();
+	// F4: the card field exists once `last_activity` is in CARD_FIELDS (types.ts, central)
+	const showActivity = $derived((fields as string[]).includes('last_activity'));
 
 	const leads = $derived(store.leads[column.id] ?? []);
 	const overLimit = $derived(column.wip_limit > 0 && leads.length > column.wip_limit);
@@ -146,7 +153,14 @@
 		)}
 	>
 		{#each leads as lead (lead.id)}
-			<KanbanCard {lead} {fields} onopen={onopencard} />
+			<KanbanCard
+				{lead}
+				{fields}
+				nextTodo={todos?.loaded ? (todos.nextFor(lead.id) ?? null) : undefined}
+				closed={!!column.closed}
+				lastActivity={showActivity ? activity?.of(lead.id) : undefined}
+				onopen={onopencard}
+			/>
 		{/each}
 	</div>
 

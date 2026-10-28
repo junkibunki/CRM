@@ -6,8 +6,8 @@ export const CARD_FIELDS: { key: CardField; label: string }[] = [
 	{ key: 'company', label: 'Unternehmen' },
 	{ key: 'contacts', label: 'Kontakte' },
 	{ key: 'expected_close', label: 'Abschlussdatum' },
-	{ key: 'owner', label: 'Zuständig' }
-	// 'next_todo' is added here by F7, together with its display on the card
+	{ key: 'owner', label: 'Zuständig' },
+	{ key: 'next_todo', label: 'Nächstes To-Do' }
 ];
 
 export const DEFAULT_CARD_FIELDS: CardField[] = CARD_FIELDS.map((f) => f.key);

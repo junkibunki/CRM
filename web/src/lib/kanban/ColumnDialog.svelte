@@ -8,7 +8,7 @@
 	import { cn } from '#lib/utils.js';
 	import { COLUMN_COLORS, type BoardColumn, type ColumnColor } from '#lib/types.js';
 
-	type ColumnData = Pick<BoardColumn, 'name' | 'color' | 'wip_limit'>;
+	type ColumnData = Pick<BoardColumn, 'name' | 'color' | 'wip_limit' | 'closed'>;
 	type Props = {
 		/** null = create a new column */
 		column: BoardColumn | null;
@@ -21,6 +21,7 @@
 	let name = $state('');
 	let color = $state<ColumnColor>('gray');
 	let wip = $state<number | null>(null);
+	let closed = $state(false);
 	// values when the dialog opened; an edit saves only what changed (concurrent edits)
 	let initial: ColumnData | null = null;
 
@@ -30,7 +31,8 @@
 			name = column?.name ?? '';
 			color = column?.color || 'gray';
 			wip = column?.wip_limit || null;
-			initial = column ? { name, color, wip_limit: wip ?? 0 } : null;
+			closed = !!column?.closed;
+			initial = column ? { name, color, wip_limit: wip ?? 0, closed } : null;
 		});
 	});
 
@@ -40,7 +42,7 @@
 		e.preventDefault();
 		if (!name.trim()) return;
 		open = false;
-		const data: ColumnData = { name: name.trim(), color, wip_limit: wip ?? 0 };
+		const data: ColumnData = { name: name.trim(), color, wip_limit: wip ?? 0, closed };
 		if (!initial) return onsave(data);
 		const changed = changedFields(initial, data);
 		if (Object.keys(changed).length) onsave(changed);
@@ -83,6 +85,16 @@
 				<Label for="col-wip">WIP-Limit (leer = keins)</Label>
 				<Input id="col-wip" type="number" min="0" step="1" bind:value={wip} />
 			</div>
+
+			<label class="flex items-start gap-2 text-sm">
+				<input type="checkbox" class="mt-0.5 size-4 accent-primary" bind:checked={closed} />
+				<span>
+					<span class="font-medium">Abgeschlossene Phase</span>
+					<span class="block text-xs text-muted-foreground">
+						z. B. Gewonnen oder Verloren: Hier wird kein nächster Schritt erwartet.
+					</span>
+				</span>
+			</label>
 
 			<Dialog.Footer>
 				<Button type="button" variant="outline" onclick={() => (open = false)}>Abbrechen</Button>

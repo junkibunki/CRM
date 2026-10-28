@@ -110,6 +110,45 @@ describe('previewData', () => {
 		expect(previewData({ columns, leads: { c1: [] } }, 'l1', lookups, '2026-10-28')).toBeNull();
 	});
 
+	it('takes the next to-do from the lookup: a to-do, none (null) or not known (undefined)', () => {
+		const board = { columns, leads: { c1: [lead('l1', 'c1', 'a0')] } };
+		const next = {
+			id: 't1',
+			lead: 'l1',
+			title: 'Anrufen',
+			due: '2026-10-28 00:00:00.000Z',
+			due_has_time: false,
+			created: ''
+		};
+		expect(previewData(board, 'l1', { ...lookups, nextTodo: () => next }, '2026-10-28')!.nextTodo).toBe(next);
+		expect(previewData(board, 'l1', { ...lookups, nextTodo: () => null }, '2026-10-28')!.nextTodo).toBeNull();
+		expect(previewData(board, 'l1', lookups, '2026-10-28')!.nextTodo).toBeUndefined();
+	});
+
+	it('takes the latest activity from the lookup (F4)', () => {
+		const board = { columns, leads: { c1: [lead('l1', 'c1', 'a0')] } };
+		const last = {
+			id: 'a1',
+			lead: 'l1',
+			type: 'note' as const,
+			subject: 'Erstkontakt',
+			body: '',
+			occurred_at: '2026-10-27 10:00:00.000Z',
+			created: ''
+		};
+		expect(previewData(board, 'l1', { ...lookups, lastActivity: () => last }, '2026-10-28')!.lastActivity).toBe(last);
+		expect(previewData(board, 'l1', { ...lookups, lastActivity: () => null }, '2026-10-28')!.lastActivity).toBeNull();
+		expect(previewData(board, 'l1', lookups, '2026-10-28')!.lastActivity).toBeUndefined();
+	});
+
+	it('knows whether the stage is closed (no "Kein nächster Schritt" there)', () => {
+		const won = { ...col('c3', 'Gewonnen', 'green', 'a2'), closed: true };
+		const at = (c: string) =>
+			previewData({ columns: [...columns, won], leads: { [c]: [lead('l1', c, 'a0')] } }, 'l1', lookups, '2026-10-28')!;
+		expect(at('c3').closed).toBe(true);
+		expect(at('c1').closed).toBe(false);
+	});
+
 	it('copes with a lead whose stage is unknown or whose names are not loaded', () => {
 		const board = { columns: [], leads: { cX: [lead('l1', 'cX', 'a0', { company: 'nope' })] } };
 		const d = previewData(board, 'l1', lookups, '2026-10-28')!;
