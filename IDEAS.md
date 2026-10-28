@@ -155,7 +155,7 @@ Welle 0)
 
 ## F4 – Letzte Aktivität auf Karte und Schnellansicht (Folge-Feature)
 
-**Status:** offen · **Abhängig von:** F1, F3
+**Status:** fertig (Welle 2, zusammen mit F7) · **Abhängig von:** F1, F3 · **Migration:** `1793190002_last_activity.js` (View `lead_last_activity`)
 
 * Schnellansicht (F1) zeigt die letzte Aktivität (Art, Datum, erste Zeile).
 * Optional auf der Karte: Datum der letzten Aktivität („vor 3 Tagen"), konfigurierbar
@@ -206,9 +206,9 @@ wurden. Jeder Punkt mit Datei, Szenario und Vorschlag.
 
 ## F13 – Sammelposten 2 (kleinere Punkte aus Welle 1)
 
-**Status:** aufgeteilt · Je Punkt: Datei, Szenario, Vorschlag. Keine neuen Features.
+**Status:** F13a fertig (Welle 2), F13b offen · Je Punkt: Datei, Szenario, Vorschlag. Keine neuen Features.
 
-**F13a (Welle 2, parallel zu F7/F10)** – nur Punkte, deren Dateien weder F7 noch F10 gehören:
+**F13a (Welle 2, parallel zu F7/F10) – fertig** – nur Punkte, deren Dateien weder F7 noch F10 gehören:
 Kopfzeile auf dem Handy, `lead` einer Aktivität per API sperren, Original-Dateinamen, Editor
 verliert Bilder/Tabellen/Überschriften, Tageslabels um Mitternacht, `favicon.ico`, `name` bei
 Konten Pflicht.
@@ -226,6 +226,26 @@ Konten Pflicht.
 atomares Neu-Nummerieren, Rollback bei gleichem Wert, „Bilder anzeigen" merken, Heuristik für
 lange Texte, doppelte Datums-Helfer, doppeltes `isGone`/`MAX_RANK_LENGTH`, Tests/Fokus der
 Schnellansicht, Screenreader-Text „Close", Punkte zu den E-Mail-Vorschlägen.
+
+**Neu für F13b aus Welle 2** (Reviews und Berichte von F7/F4, F10, F13a, Integration):
+* **Quelle eines To-Dos veraltet** – `todos/lead.svelte.ts`: das per `expand` geladene Datum/die
+  Art der Quell-Notiz wird nicht aktualisiert, wenn jemand die Notiz bearbeitet („aus Notiz vom
+  …" bleibt bis zum Neuladen alt). Vorschlag: auf `activities` hören und das expand nachladen.
+* **Uhrzeit in der Sommerzeit-Lücke** – `todos/due.ts` (`fromDueInput`): 02:30 am Tag der
+  Zeitumstellung im Frühjahr wird still um eine Stunde verschoben. Vorschlag: erkennen und
+  einen Hinweis zeigen.
+* **Link „aus Notiz vom …" ins Leere** – wenn der Timeline-Filter die Notiz ausblendet, passiert
+  beim Klick nichts. Vorschlag: Filter zurücksetzen, dann scrollen.
+* **Erledigte To-Dos ohne Datum** – zeigen nur „erledigt", nicht wann.
+* **Doppelter Tabellenstil** – `activities/editor.ts` (`TABLE_CLASSES`, `table-fixed`) und
+  `activity-html.css` (Timeline, Auto-Layout) können auseinanderlaufen. Vorschlag: eine Quelle.
+* **Unternehmens-Abruf im Lead-Dialog** – der in `LeadDialog` eingebettete `CompanyDialog` ruft
+  die Website-Daten nicht automatisch ab (nur per Knopf), anders als aus dem Kontakt-Dialog.
+* **Website-Abruf: Cache nur im Speicher** – geht beim Neustart verloren; Seiten, die per
+  JavaScript rendern oder Bot-Schutz haben, liefern nichts (das wäre F11).
+* **Website-Abruf: UX** – während ein Abruf läuft (bis ≈ 20 s), bleibt der Knopf gesperrt, auch
+  wenn die Website im Feld geändert wurde; eine ungültige Endung mit Bindestrich/Ziffer meldet
+  „IP-Adressen sind nicht erlaubt".
 
 * **Atomares Neu-Nummerieren** – `board.svelte.ts` (`rankAt`): parallel laufende Updates sind
   nicht atomar; andere Nutzer sehen kurz eine durcheinandergeratene Reihenfolge. Vorschlag:
@@ -273,7 +293,7 @@ Schnellansicht, Screenreader-Text „Close", Punkte zu den E-Mail-Vorschlägen.
 
 ## F7 – To-Dos pro Lead, nächstes To-Do auf der Karte
 
-**Status:** offen · **Abhängig von:** – (Kern); F2 und F3 für die Einbindung (siehe unten)
+**Status:** fertig (Welle 2) · **Abhängig von:** – (Kern); F2 und F3 für die Einbindung (siehe unten)
 · **Migration reserviert:** `1793190001_todos.js`
 
 **Ziel:** Zu jedem Lead lassen sich To-Dos mit Datum anlegen. Entscheidend ist das
@@ -421,7 +441,7 @@ wird ohne Bestätigung angelegt.
 
 ## F10 – Unternehmensdaten von der Website vorschlagen (Stufe 2)
 
-**Status:** offen · **Abhängig von:** F9 (nutzt dessen Domain-Erkennung und ändert
+**Status:** fertig (Welle 2; braucht `curl` auf dem Server, siehe README) · **Abhängig von:** F9 (nutzt dessen Domain-Erkennung und ändert
 dieselben Dialoge — **nach F9** umsetzen) · **Migration:** keine
 
 **Ziel:** Für eine unbekannte Firmen-Domain liest der Server die Website und das Impressum
@@ -567,39 +587,94 @@ und `KanbanColumn.svelte` (Badge, Schloss), `web/src/lib/kanban/LeadDialog.svelt
 `1793190005_hubspot_import.js` (falls Felder nötig)
 
 **Ziel:** Bestehende Daten aus HubSpot einmalig übernehmen: Unternehmen, Kontakte, Deals
-(→ Leads) und Notizen/Aktivitäten, mit ihren Verknüpfungen.
+(→ Leads) und die Notizen der Deals, mit ihren Verknüpfungen.
 
 **Entscheidungen (geklärt)**
+* **Notizen ohne Datum** aus dem Deal-Export, mit Vermerk „aus HubSpot"; Meetings,
+  E-Mails und Anrufe werden nicht übernommen.
+* **HubSpot-Phasen werden eigene Pipeline-Phasen**; nur „Abgeschlossen und verloren" →
+  „Verloren".
 * **Einmalige Migration**, kein laufender Abgleich. Ein zweiter Lauf soll trotzdem keine
   Dubletten erzeugen (Abgleich über E-Mail bzw. Domain, siehe unten).
 * **Nur Admins** dürfen importieren.
 
-**Zuordnung (Vorschlag)**
-* Companies → `companies`: Name, Domain → `website`, Telefon, Adresse (Straße, PLZ, Ort,
-  Land zu `address` zusammengesetzt). Dublette = gleiche Domain.
-* Contacts → `contacts`: Vorname, Nachname, E-Mail, Telefon, Position; Unternehmen über die
-  zugeordnete Company-ID aus dem Export. Dublette = gleiche E-Mail.
-* Deals → `leads`: Name → `title`, Close Date → `expected_close`, Deal Owner → `owner`
-  (per E-Mail auf `users`), Deal-Phase → Pipeline-Phase über eine **Zuordnungstabelle**,
-  die der Admin vor dem Import festlegt; Unternehmen/Kontakte über die Assoziationen.
-* Notes/E-Mails/Meetings → `activities` (`note`, `email_in`/`email_out`, `meeting`),
-  `occurred_at` aus dem HubSpot-Zeitstempel, HTML durch `sanitize.ts`.
-* Die HubSpot-Spaltennamen hängen von der Kontosprache ab (deutsch/englisch): Spalten
-  per Zuordnung erkennen, nicht fest verdrahten.
+**Export-Format (geprüft an echten Exporten vom 2026-10-28)**
+* Drei Dateien „alle Deals/Kontakte/Unternehmen": UTF-8 **ohne BOM**, CRLF, jedes Feld in
+  `"…"`, Komma als Trenner. Spaltennamen **deutsch** (Kontosprache) und teils mit
+  Leerzeichen am Ende (`"Für Kontakt zuständiger Mitarbeiter "`) → Kopfzeilen trimmen.
+* IDs sind 11–12-stellige Zahlen (`Datensatz-ID`) — als String behandeln, nicht als Zahl.
+* Zeitstempel `YYYY-MM-DD HH:MM` ohne Zeitzone (Kontozeit); leer = `""`.
+* Werte nicht sauber: Leerzeichen am Ende (`"Dirk "`), Telefon mit führendem Leerzeichen
+  (`" +4902451481539"`) → alle Werte trimmen; Telefonnummern sonst unverändert übernehmen.
+* **Unternehmen:** `Datensatz-ID, Unternehmensname, Associated Contact, Erstellungsdatum,
+  Für Unternehmen zuständiger Mitarbeiter, Telefonnummer, Datum der letzten Aktivität,
+  Stadt, Associated Contact IDs`. Die **Kontakt-Zuordnung steht hier**: `Associated Contact
+  IDs`, mehrere durch `;` getrennt. **Keine Domain/Website-Spalte**; Name kann **leer** sein.
+* **Kontakte:** `Datensatz-ID, Vorname, Nachname, Jobbezeichnung, E-Mail, Telefonnummer,
+  Für Kontakt zuständiger Mitarbeiter, Datum der letzten Aktivität, Erstellungsdatum`.
+  **Keine Unternehmens-Spalte** (Zuordnung nur über die Unternehmens-Datei). Namen sind
+  nicht eindeutig (zwei verschiedene „Christian Huber").
+* **Deals:** den Export **mit allen Eigenschaften und Zuordnungen** verwenden (153 Spalten,
+  `…-alle-deals-…-1.csv`); der schlanke Export (6 Spalten) hat keine Zuordnungen. Genutzt:
+  `Datensatz-ID`, `Deal-Name`, `Deal-Phase`, `Abschlussdatum`, `Für Deal zuständiger
+  Mitarbeiter` (Name, nicht E-Mail), `Associated Company IDs`, `Associated Contact IDs`
+  (`;`-Listen), `Siemens Flag` (`Ja`/`Nein`/leer, Bezug zu F12). Kopfzeilen enthalten
+  typografische Anführungszeichen (`„Erstellt von Benutzer“-ID`), Werte `""`-escapte
+  Anführungszeichen. Nicht jeder Deal hat ein Unternehmen (2 von 24 ohne).
+* Deal-Phasen im Export: Ersten Termin vereinbart · Ersten Termin abgeschlossen ·
+  Folgeschritte definiert · Lead bei Mendix flaggen · Workshop durchgeführt · Abgeschlossen
+  und verloren. Nur eine Pipeline („Deals-Pipeline").
+* **Aktivitäten nur bruchstückhaft** im Deal-Export: `Associated Note` = Notiztexte als
+  **reiner Text ohne Zeilenumbrüche, ohne Datum und Autor**, mehrere durch `;` getrennt —
+  `;` steht aber auch *im* Text (1 Notiz → 8 Teile bei 1 ID). `Associated Meeting`/`Task`/
+  `Call` nur Titel (fehlt der Titel, steht die ID da), `Associated Email` nur IDs.
+
+**Zuordnung**
+* Unternehmen → `companies`: Name, Telefon, `Stadt` → `address`. `website` aus den
+  E-Mail-Domains der zugeordneten Kontakte ableiten (Freemail ausgenommen, Logik aus
+  `email-suggest.ts` wiederverwenden). Leerer Name → Name aus der Domain wie bei F9
+  (`spie-escad.de` → „Spie Escad"), im Probelauf markiert. Dublette = gleiche Domain,
+  sonst gleicher Name.
+* Kontakte → `contacts`: Vorname, Nachname, Jobbezeichnung → `position`, E-Mail, Telefon;
+  `company` über `Associated Contact IDs` der Unternehmens-Datei. Dublette = gleiche E-Mail.
+* Deals → `leads`: Deal-Name → `title`, Abschlussdatum (nur Datum) → `expected_close`,
+  Zuständiger → `owner` über `users.name`, Deal-Phase → Pipeline-Phase (siehe
+  Phasen unten), `company` aus `Associated Company IDs` (bei mehreren die
+  `(Primary)`-Spalte), `contacts` aus `Associated Contact IDs`.
+* Nicht übernommen: Zuständige bei Unternehmen/Kontakten (gibt es hier nicht), `Betrag`,
+  Wahrscheinlichkeit, Deal-Typ, Priorität, `Erstellungsdatum`/`Datum der letzten
+  Aktivität` (`created` ist ein autodate).
+* Notizen → `activities` (`note`): Text am `;` nur trennen, wenn die Teile zur Zahl der
+  `Associated Note IDs` passen, sonst als **eine** Notiz mit Hinweis im Probelauf.
+  Betreff **„aus HubSpot"**; `occurred_at` (Pflicht) = Zeitpunkt des Imports, weil HubSpot
+  kein Datum liefert; `author` = der importierende Admin bzw. ein fester Import-Nutzer.
+  Dublette = gleicher Lead + gleicher Text.
+* **Phasen:** jede HubSpot-Phase wird eine **eigene Pipeline-Phase** (gleicher Name,
+  angelegt, falls noch nicht vorhanden); nur „Abgeschlossen und verloren" → vorhandene
+  Phase „Verloren" (ebenso „Abgeschlossen und gewonnen" → „Gewonnen", falls es vorkommt).
+  Neue Phasen kommen vor die abgeschlossenen Phasen, sortiert nach HubSpots
+  `Dealwahrscheinlichkeit` (Ersten Termin vereinbart 0,1 → Ersten Termin abgeschlossen
+  0,2 → Folgeschritte definiert / Lead bei Mendix flaggen 0,3 → Workshop durchgeführt
+  0,5); Gleichstand in der Reihenfolge des Exports. Die vorhandenen Phasen bleiben;
+  aufräumen und umsortieren danach von Hand im Board.
+* **Entfallen:** Meetings, E-Mails und Anrufe (im Export nur Titel/IDs).
+* Offene Aufgaben (`Associated Task`, nur Titel) → To-Dos (F7), sobald es sie gibt.
 
 **Offene Punkte (vor Umsetzung klären)**
-* **Echte Export-Dateien besorgen** und Format prüfen — besonders, wie HubSpot
-  Assoziationen (IDs vs. Namen) und Aktivitäten exportiert. Danach die Zuordnung
-  festschreiben.
+* `Siemens Flag` übernehmen, sobald F12 die Bedingungen hat (passt zur Phase „Lead bei
+  Mendix flaggen")?
 * Umsetzung als Admin-Skript (`scripts/import-hubspot.mjs`, Superuser, mit Probelauf
   `--dry-run`) oder als Seite in der App? Für eine einmalige Migration genügt das Skript.
 * Anhänge von Notizen mit übernehmen?
 
 **Akzeptanzkriterien (Entwurf)**
 * Probelauf zeigt: wie viele Datensätze je Art angelegt/übersprungen werden, nicht
-  zuordenbare Zeilen mit Grund (fehlende Phase, unbekannter Owner, Company-ID ohne Treffer).
+  zuordenbare Zeilen mit Grund (fehlende Phase, unbekannter Zuständiger, Kontakt-ID ohne
+  Treffer, Unternehmen ohne Namen).
 * Verknüpfungen bleiben erhalten; ein zweiter Lauf legt nichts doppelt an.
-* Parser und Zuordnung als reine Funktionen mit Unit-Tests (anonymisierte Beispiel-CSVs).
+* Parser und Zuordnung als reine Funktionen mit Unit-Tests. **Echte Exporte enthalten
+  personenbezogene Daten und kommen nicht ins Repo**; Test-CSVs mit erfundenen Werten im
+  exakten Format oben (Kopfzeilen, Leerzeichen, `;`-Listen, leere Namen).
 
 ---
 
@@ -728,7 +803,7 @@ Dateien; in Welle 2 ändert F7 dort nur `ActivityItem.svelte` (Button „To-Do d
 F3 → F2 → F1), nach jedem Merge `check` + `build`; danach `ActivityTimeline` in die
 Detailseite einsetzen (kleine Änderung, eigener Review); Doku zusammenführen.
 
-### Welle 2 – drei Agents parallel
+### Welle 2 – drei Agents parallel (erledigt)
 
 Jeder Agent führt als **erstes** `git merge --ff-only main` in seinem Worktree aus (Worktrees
 können von einem älteren Commit abzweigen, siehe `testen.md`).
