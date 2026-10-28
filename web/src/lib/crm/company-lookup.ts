@@ -40,6 +40,16 @@ export function lookupDomain(website: string): string {
 	}
 }
 
+/** The lookup button is blocked only while a lookup runs for the domain now in the field. */
+export function lookupLocked(busy: boolean, loadingFrom: string, domain: string): boolean {
+	return busy && !!domain && loadingFrom === domain;
+}
+
+/** Leaving the website field loads by itself (autoLookup) when it names a domain not asked yet. */
+export function autoLookupDue(domain: string, lastAsked: string): boolean {
+	return !!domain && domain !== lastAsked;
+}
+
 export function fetchCompanyLookup(domain: string): Promise<CompanyLookup> {
 	return pb.send<CompanyLookup>('/api/crm/company-lookup', {
 		method: 'GET',

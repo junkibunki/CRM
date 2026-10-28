@@ -23,11 +23,14 @@
 	import { contactLabel, userLabel } from '#lib/collection.svelte.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { clock } from '#lib/todos/clock.svelte.js';
-	import { formatDue, titleFromText } from '#lib/todos/due.js';
+	import { formatDone, formatDue, titleFromText } from '#lib/todos/due.js';
 	import { useLeadTodos, type LeadTodoStore } from '#lib/todos/lead.svelte.js';
 	import TodoForm from '#lib/todos/TodoForm.svelte';
 	import { MAX_TITLE } from '#lib/todos/types.js';
+	import { untrack } from 'svelte';
+	import { auth } from '#lib/auth.svelte.js';
 	import Attachment from './Attachment.svelte';
+	import { allowImages, COLLAPSED_REM, imagesAllowed, remToPx, watchOverflow } from './display';
 	import { formatTime } from './format';
 	import { sanitizeHtml } from './sanitize';
 	import { typeLabel, type Activity } from './types';
@@ -41,7 +44,12 @@
 	let { activity, onedit, ondelete }: Props = $props();
 
 	let expanded = $state(false);
-	let showImages = $state(false);
+	// remembered per user and activity in this browser, so a reload doesn't block them again
+	let showImages = $state(untrack(() => imagesAllowed(auth.user?.id ?? '', activity.id)));
+	function loadImages() {
+		showImages = true;
+		allowImages(auth.user?.id ?? '', activity.id);
+	}
 
 	// F7: to-dos made from this note (shared store of the lead: one subscription for all notes)
 	const canMakeTodo = $derived(activity.type === 'note' || activity.type === 'meeting');
@@ -75,7 +83,18 @@
 	const clean = $derived(sanitizeHtml(activity.body, { allowImages: showImages }));
 	const style = $derived(TYPE_STYLE[activity.type] ?? TYPE_STYLE.note);
 	const people = $derived(activity.contacts.map(contactLabel).filter(Boolean));
-	const collapsed = $derived(clean.long && !expanded);
+
+	// "mehr" when the rendered text is taller than the collapsed box (measured; the estimate
+	// from sanitizeHtml only until the first measurement, or where it can't be measured)
+	let contentEl = $state<HTMLElement | null>(null);
+	let measured = $state<boolean | null>(null);
+	$effect(() => {
+		if (!contentEl) return;
+		const limit = remToPx(COLLAPSED_REM);
+		return watchOverflow(contentEl, () => limit, (long) => (measured = long));
+	});
+	const long = $derived(measured ?? clean.long);
+	const collapsed = $derived(long && !expanded);
 </script>
 
 <article
@@ -125,15 +144,18 @@
 		{/if}
 
 		<div class="relative mt-1">
-			<div bind:this={bodyEl} class="activity-html text-sm {collapsed ? 'max-h-32 overflow-hidden' : ''}">
-				<!-- sanitizeHtml: allowlist of the editor's tags, no scripts/handlers/external images -->
-				{@html clean.html}
+			<div bind:this={bodyEl} class="text-sm {collapsed ? 'max-h-32 overflow-hidden' : ''}">
+				<!-- inner box: its full height is what watchOverflow measures (max-h-32 = COLLAPSED_REM) -->
+				<div bind:this={contentEl} class="activity-html">
+					<!-- sanitizeHtml: allowlist of the editor's tags, no scripts/handlers/external images -->
+					{@html clean.html}
+				</div>
 			</div>
 			{#if collapsed}
 				<div class="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-card to-transparent"></div>
 			{/if}
 		</div>
-		{#if clean.long}
+		{#if long}
 			<button type="button" class="mt-1 text-xs font-medium text-primary hover:underline" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
 				{expanded ? 'weniger' : 'mehr'}
 			</button>
@@ -143,7 +165,7 @@
 			<p class="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
 				<ImageOffIcon class="size-3.5" />
 				{clean.blockedImages === 1 ? '1 externes Bild' : `${clean.blockedImages} externe Bilder`} nicht geladen (Schutz vor Tracking).
-				<button type="button" class="font-medium text-primary hover:underline" onclick={() => (showImages = true)}>Bilder anzeigen</button>
+				<button type="button" class="font-medium text-primary hover:underline" onclick={loadImages}>Bilder anzeigen</button>
 			</p>
 		{/if}
 
@@ -162,7 +184,7 @@
 						<ListTodoIcon class="size-3.5 shrink-0" />
 						<span class="sr-only">To-Do:</span>
 						<span class="min-w-0 truncate {t.done ? 'line-through' : ''}">{t.title}</span>
-						<span class="shrink-0">· {t.done ? 'erledigt' : formatDue(t, clock.now)}</span>
+						<span class="shrink-0">· {t.done ? formatDone(t.done_at, clock.now) : formatDue(t, clock.now)}</span>
 					</li>
 				{/each}
 			</ul>

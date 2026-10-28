@@ -4,14 +4,14 @@
 	import { untrack } from 'svelte';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import * as Dialog from '#lib/components/dialog/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
 	import * as Select from '#lib/components/ui/select/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
 	import { companies, companyName, contacts } from '#lib/collection.svelte.js';
 	import CompanyDialog from '#lib/crm/CompanyDialog.svelte';
-	import { suggestFromEmail, visibleSuggestions, type Chip } from '#lib/crm/email-suggest.js';
+	import { emailToSuggest, suggestFromEmail, visibleSuggestions, type Chip } from '#lib/crm/email-suggest.js';
 	import { changedFields } from '#lib/diff.js';
 	import { deleteErrorMessage, errorMessage } from '#lib/pb.js';
 	import { contactName, type Contact } from '#lib/types.js';
@@ -51,10 +51,12 @@
 	let companyOpen = $state(false);
 	let companyPrefill = $state<{ name: string; website: string }>({ name: '', website: '' });
 
+	// editing: only a changed address suggests something (emailToSuggest)
+	const toCheck = () => emailToSuggest(form.email, initial.email, !!contact);
 	function checkEmail(delay = 0) {
 		clearTimeout(emailTimer);
-		if (delay) emailTimer = setTimeout(() => (checkedEmail = form.email), delay);
-		else checkedEmail = form.email;
+		if (delay) emailTimer = setTimeout(() => (checkedEmail = toCheck()), delay);
+		else checkedEmail = toCheck();
 	}
 
 	// only for empty fields; a chosen company (e.g. the lead's) wins over the domain

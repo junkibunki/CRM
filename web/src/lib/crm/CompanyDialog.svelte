@@ -4,13 +4,15 @@
 	import { untrack } from 'svelte';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import * as Dialog from '#lib/components/dialog/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
 	import { companies } from '#lib/collection.svelte.js';
 	import {
+		autoLookupDue,
 		fetchCompanyLookup,
+		lookupLocked,
 		lookupChips,
 		lookupDomain,
 		lookupEmpty,
@@ -28,7 +30,10 @@
 		open: boolean;
 		/** initial values for a new company (e.g. name and website from an e-mail domain) */
 		prefill?: Partial<typeof empty>;
-		/** load suggestions from the prefilled website right away (unknown domain from F9) */
+		/**
+		 * new company: load suggestions without the button — right away from a prefilled website
+		 * (unknown domain from F9), otherwise when the website field is left with a new domain
+		 */
 		autoLookup?: boolean;
 		onsaved?: (company: Company) => void;
 	};
@@ -55,6 +60,13 @@
 	// hides them until the new domain is loaded
 	const lookupCurrent = $derived(!!lookupFrom && lookupFrom === domain);
 	const lookupFound = $derived(lookupChips(lookupCurrent ? lookupResult : null, form));
+	// a running lookup (up to ≈ 20 s) only blocks the button for its own domain: after editing
+	// the website the new one can be loaded at once (the old answer is then dropped)
+	const loadingCurrent = $derived(lookupLocked(lookupBusy, lookupFrom, domain));
+
+	function websiteLeft() {
+		if (autoLookup && !company && autoLookupDue(domain, lookupFrom)) void loadLookup(domain);
+	}
 
 	async function loadLookup(target: string) {
 		if (!target) return;
@@ -170,7 +182,7 @@
 			<div class="grid grid-cols-2 gap-4">
 				<div class="grid content-start gap-1.5">
 					<Label for="co-web">Website</Label>
-					<Input id="co-web" type="url" bind:value={form.website} placeholder="https://" />
+					<Input id="co-web" type="url" bind:value={form.website} placeholder="https://" onblur={websiteLeft} />
 					{@render suggestion('website')}
 				</div>
 				<div class="grid content-start gap-1.5">
@@ -179,21 +191,21 @@
 					{@render suggestion('phone')}
 				</div>
 			</div>
-			{#if domain || lookupBusy}
+			{#if domain || loadingCurrent}
 				<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" aria-live="polite">
 					{#if domain}
 						<Button
 							type="button"
 							variant="outline"
 							size="sm"
-							disabled={lookupBusy}
+							disabled={loadingCurrent}
 							onclick={() => loadLookup(domain)}
 						>
-							{#if lookupBusy}<LoaderCircleIcon class="animate-spin" />{:else}<GlobeIcon />{/if}
+							{#if loadingCurrent}<LoaderCircleIcon class="animate-spin" />{:else}<GlobeIcon />{/if}
 							Daten von {domain} laden
 						</Button>
 					{/if}
-					{#if lookupBusy}
+					{#if loadingCurrent}
 						<span class="text-muted-foreground">Lade Daten von {lookupFrom} …</span>
 					{:else if lookupCurrent && lookupError}
 						<span class="text-muted-foreground">{lookupError}</span>

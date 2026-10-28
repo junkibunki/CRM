@@ -1,27 +1,22 @@
-import { ClientResponseError, type RecordSubscription } from 'pocketbase';
-import { auth } from '../auth.svelte';
+import { type RecordSubscription } from 'pocketbase';
 import type { BoardStore } from '../board.svelte';
-import { applyDelta, listDelta, same } from '../diff';
+import { applyDelta, listDelta } from '../diff';
 import { liveSync } from '../live';
 import { gateFailure } from '../gates/prompt.svelte';
+import {
+	checkSession,
+	isGone,
+	MAX_RANK_LENGTH,
+	RankSaveError,
+	RealtimeMarks,
+	rollback,
+	saveRanks
+} from '../optimistic';
 import { errorMessage, pb } from '../pb';
 import { byRank, freshRanks, insertSorted, rankBetween } from '../rank';
 import type { BoardColumn, Lead, LeadData } from '../types';
 
-// same limit as the board (see kanban.md): re-rank the stage instead of growing keys forever
-const MAX_RANK_LENGTH = 50;
-
 const GONE = 'Der Lead wurde inzwischen gelöscht, die Änderungen sind nicht gespeichert.';
-
-/**
- * The record no longer exists. A 404 can also mean our session became invalid (PocketBase
- * then answers as for a guest), so the session is checked first; if it is invalid,
- * auth.refresh() logs out and this is not treated as "gone".
- */
-async function isGone(err: unknown) {
-	if (!(err instanceof ClientResponseError && err.status === 404)) return false;
-	return auth.refresh();
-}
 
 /** What `LeadDialog` calls on its store; the detail page hands it a `LeadStore`. */
 export type LeadWriter = Pick<BoardStore, 'error' | 'addLead' | 'updateLead' | 'deleteLead'>;
@@ -43,6 +38,9 @@ export class LeadStore implements LeadWriter {
 	error = $state('');
 	// plain variable, not $state: it only steers how a delete event is read
 	private deleting = false;
+	// realtime events of the lead: a failed write checks whether the server's state arrived
+	// meanwhile before it rolls back (see optimistic.ts)
+	private marks = new RealtimeMarks();
 
 	constructor(readonly id: string) {}
 
@@ -73,6 +71,7 @@ export class LeadStore implements LeadWriter {
 					pb.collection('board_columns').getFullList<BoardColumn>({ sort: 'rank,id' })
 				]),
 			apply: ([lead, columns]) => {
+				this.marks.note(lead.id);
 				// merge, so a reload after a reconnect keeps the object (open dialogs hold it)
 				if (this.lead) Object.assign(this.lead, lead);
 				else this.lead = lead;
@@ -96,6 +95,7 @@ export class LeadStore implements LeadWriter {
 
 	private onLead(e: RecordSubscription<Lead>) {
 		if (e.record.id !== this.id) return;
+		this.marks.note(this.id);
 		if (e.action === 'delete') return this.gone();
 		if (this.lead) Object.assign(this.lead, e.record);
 		else this.lead = e.record;
@@ -149,9 +149,9 @@ export class LeadStore implements LeadWriter {
 			else delete ours.contacts; // only the order differed: nothing to save
 		}
 		if (!Object.keys(body).length) return;
-		data = ours;
-		const prev = Object.fromEntries(Object.keys(data).map((k) => [k, lead[k]]));
-		Object.assign(lead, data);
+		const prev = Object.fromEntries(Object.keys(ours).map((k) => [k, lead[k]])) as Partial<LeadData>;
+		Object.assign(lead, ours);
+		const mark = this.marks.mark(id);
 		try {
 			await pb.collection('leads').update(id, body);
 		} catch (err) {
@@ -161,9 +161,7 @@ export class LeadStore implements LeadWriter {
 				return;
 			}
 			// roll back only fields nobody else has changed in the meantime
-			for (const [k, v] of Object.entries(prev)) {
-				if (same(lead[k], data[k as keyof LeadData])) lead[k] = v;
-			}
+			rollback(lead as Partial<LeadData>, prev, ours, this.marks.since(id, mark));
 			this.error = errorMessage(err);
 		}
 	}
@@ -208,6 +206,7 @@ export class LeadStore implements LeadWriter {
 		if (lead.column !== prev.column || lead.rank !== prev.rank) return;
 		lead.column = columnId;
 		lead.rank = rank;
+		const mark = this.marks.mark(this.id);
 		try {
 			await pb.collection('leads').update(this.id, { column: columnId, rank });
 		} catch (err) {
@@ -216,8 +215,10 @@ export class LeadStore implements LeadWriter {
 				this.error = GONE;
 				return;
 			}
-			// roll back only if nobody else has moved it in the meantime
-			if (lead.column === columnId && lead.rank === rank) Object.assign(lead, prev);
+			// roll back only if nobody else has moved it in the meantime (also to the same place)
+			if (lead.column === columnId && lead.rank === rank && !this.marks.since(this.id, mark)) {
+				Object.assign(lead, prev);
+			}
 			// refused by a stage gate (F12): the server's sentence without the field name
 			this.error = gateFailure(err);
 		}
@@ -237,11 +238,19 @@ export class LeadStore implements LeadWriter {
 			.sort(byRank);
 		const rank = rankBetween(list.at(-1)?.rank ?? null, null);
 		if (rank !== null && rank.length <= MAX_RANK_LENGTH) return rank;
-		// invalid or overly long keys: give the whole stage fresh keys, ours is the last
+		// invalid or overly long keys: give the whole stage fresh keys (one batch transaction,
+		// see optimistic.ts), ours is the last
 		const keys = freshRanks(list.length + 1);
-		await Promise.all(
-			list.map((l, i) => pb.collection('leads').update(l.id, { rank: keys[i] }))
-		);
+		try {
+			await saveRanks(
+				'leads',
+				list.map((l, i) => ({ id: l.id, rank: keys[i] }))
+			);
+		} catch (err) {
+			const cause = err instanceof RankSaveError ? err.error : err;
+			await checkSession(cause); // a failed re-rank may be a guest answer
+			throw cause;
+		}
 		return keys[list.length];
 	}
 }

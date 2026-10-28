@@ -3,7 +3,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import * as Dialog from '#lib/components/dialog/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
 	import * as Select from '#lib/components/ui/select/index.js';
@@ -271,8 +271,10 @@
 	onconfirm={remove}
 />
 
+<!-- autoLookup: website data load by themselves once the website is entered (as from the contact dialog) -->
 <CompanyDialog
 	company={null}
+	autoLookup
 	bind:open={companyOpen}
 	onsaved={(c) => {
 		form.company = c.id;

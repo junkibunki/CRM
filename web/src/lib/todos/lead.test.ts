@@ -18,12 +18,22 @@ type Opts = { filter?: string; fields?: string; expand?: string };
 let listOptions: Opts[];
 let subscribeOptions: Opts[];
 let createOptions: (Opts | undefined)[];
+let activitySubOptions: Opts[];
 
 /** the shared mock ignores filters and options: apply `lead = "…"`, record the options */
 function wrapCollections() {
 	const real = mock.pb.collection;
 	vi.spyOn(mock.pb, 'collection').mockImplementation((name: string) => {
 		const c = real(name);
+		if (name === 'activities') {
+			return {
+				...c,
+				async subscribe(topic: string, cb: Parameters<typeof c.subscribe>[1], opts?: Opts) {
+					activitySubOptions.push(opts ?? {});
+					return c.subscribe(topic, cb);
+				}
+			};
+		}
 		if (name !== 'todos') return c;
 		return {
 			...c,
@@ -81,6 +91,7 @@ beforeEach(async () => {
 	listOptions = [];
 	subscribeOptions = [];
 	createOptions = [];
+	activitySubOptions = [];
 	wrapCollections();
 	mock.set('todos', [
 		todo('later', '2026-11-10'),
@@ -241,6 +252,28 @@ describe('LeadTodoStore: realtime', () => {
 		mock.emit('todos', 'update', todo('soon', '2026-11-01', { source_activity: '' }));
 		expect(store.fromActivity('a1').map((t) => t.id)).toEqual(['older']);
 		expect(store.get('soon')?.expand).toBeUndefined();
+	});
+
+	it('follows an edit of the source note ("aus Notiz vom …" was stale until a reload)', () => {
+		const note = { id: 'a1', lead: 'l1', type: 'meeting', subject: 'Neu', occurred_at: '2026-10-20 09:00:00.000Z' };
+		mock.emit('activities', 'update', note);
+		for (const id of ['soon', 'older']) {
+			expect(store.get(id)?.expand?.source_activity).toEqual({
+				id: 'a1',
+				type: 'meeting',
+				subject: 'Neu',
+				occurred_at: '2026-10-20 09:00:00.000Z'
+			});
+		}
+		expect(store.get('later')?.expand?.source_activity).toBeUndefined();
+		// subscribed per lead, with only the shown fields
+		expect(activitySubOptions[0]).toEqual({ filter: 'lead = "l1"', fields: 'id,type,subject,occurred_at' });
+	});
+
+	it('hides the link right away when the source note is deleted', () => {
+		mock.emit('activities', 'update', { id: 'a1', type: 'note', subject: '', occurred_at: '2026-10-20 09:00:00.000Z' });
+		mock.emit('activities', 'delete', { id: 'a1' });
+		expect(store.get('soon')?.expand?.source_activity).toBeUndefined();
 	});
 
 	it('reloads after a reconnect, unchanged to-dos keep their object', async () => {

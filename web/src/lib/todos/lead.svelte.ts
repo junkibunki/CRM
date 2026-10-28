@@ -4,7 +4,7 @@ import { liveSync } from '../live';
 import { errorMessage, pb } from '../pb';
 import { createTodo, doneFields, writeFailure } from './api';
 import { compareTodos } from './due';
-import type { NewTodo, Todo, TodoData } from './types';
+import type { NewTodo, SourceActivity, Todo, TodoData } from './types';
 
 /** the note a to-do came from, with only what the list shows ("aus Notiz vom …") */
 const SOURCE = {
@@ -13,6 +13,9 @@ const SOURCE = {
 		'*,expand.source_activity.id,expand.source_activity.type,' +
 		'expand.source_activity.subject,expand.source_activity.occurred_at'
 };
+
+/** fields of a note that "aus Notiz vom …" shows; its realtime events patch the expand */
+const SOURCE_FIELDS = 'id,type,subject,occurred_at';
 
 /** Order of the list: open ones first (next to-do on top), then done ones, latest first. */
 export function compareLeadTodos(a: Todo, b: Todo): number {
@@ -53,6 +56,14 @@ export class LeadTodoStore {
 					.subscribe<Todo>('*', (e) => handle(() => this.onEvent(e.action, e.record)), {
 						filter,
 						...SOURCE
+					}),
+				// the notes of this lead: someone edits the date/type of a note a to-do came from
+				// -> "aus Notiz vom …" follows without a reload (a todos event doesn't come then)
+				pb
+					.collection('activities')
+					.subscribe<SourceActivity>('*', (e) => handle(() => this.onSource(e.action, e.record)), {
+						filter,
+						fields: SOURCE_FIELDS
 					})
 			],
 			fetch: () => pb.collection('todos').getFullList<Todo>({ filter, ...SOURCE }),
@@ -123,6 +134,19 @@ export class LeadTodoStore {
 		Object.assign(cur, rec);
 		if (!rec.expand) delete cur.expand;
 		this.reposition(cur);
+	}
+
+	/** a note of this lead changed or went: update the expanded source of its to-dos */
+	private onSource(action: string, rec: SourceActivity) {
+		for (const t of this.list) {
+			if (t.source_activity !== rec.id) continue;
+			if (action === 'delete') {
+				if (t.expand) delete t.expand.source_activity;
+			} else {
+				const source = { id: rec.id, type: rec.type, subject: rec.subject, occurred_at: rec.occurred_at };
+				t.expand = { ...t.expand, source_activity: source };
+			}
+		}
 	}
 
 	/** after a (re)load: unchanged records keep their object (no re-render) */

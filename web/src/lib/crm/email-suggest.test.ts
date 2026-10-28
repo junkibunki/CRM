@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	companyNameFromDomain,
+	emailToSuggest,
 	suggestFromEmail,
 	umlautVariant,
 	visibleSuggestions,
@@ -349,5 +350,21 @@ describe('visibleSuggestions (what the contact dialog offers)', () => {
 		const none = { first_name: [], last_name: [], company: null };
 		expect(visibleSuggestions(null, empty)).toEqual(none);
 		expect(visibleSuggestions(suggestFromEmail('kaputt', []), empty)).toEqual(none);
+	});
+});
+
+describe('emailToSuggest: editing suggests only after the address changed', () => {
+	it('new contact: always the typed address', () => {
+		expect(emailToSuggest('anna.mueller@firma.de', '', false)).toBe('anna.mueller@firma.de');
+	});
+
+	it('existing contact: nothing for its unchanged address (empty fields stay as they were)', () => {
+		expect(emailToSuggest('anna.mueller@firma.de', 'anna.mueller@firma.de', true)).toBe('');
+		expect(emailToSuggest(' Anna.Mueller@Firma.de ', 'anna.mueller@firma.de', true)).toBe('');
+	});
+
+	it('existing contact: a changed address suggests again', () => {
+		expect(emailToSuggest('anna.schmidt@neu.de', 'anna.mueller@firma.de', true)).toBe('anna.schmidt@neu.de');
+		expect(emailToSuggest('anna.schmidt@neu.de', '', true)).toBe('anna.schmidt@neu.de');
 	});
 });

@@ -2,11 +2,11 @@
 	import { untrack } from 'svelte';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import * as Dialog from '#lib/components/dialog/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
 	import { errorMessage } from '#lib/pb.js';
-	import { fromDueInput, QUICK_PICKS, quickDay } from './due';
+	import { dueGapNote, fromDueInput, QUICK_PICKS, quickDay } from './due';
 	import { MAX_TITLE, type TodoData } from './types';
 
 	/**
@@ -28,6 +28,8 @@
 	let time = $state('');
 	let error = $state('');
 	let saving = $state(false);
+	// e.g. 02:30 on the day summer time starts: saved as 03:30, say so before saving
+	const gapNote = $derived(dueGapNote(date, time));
 
 	$effect(() => {
 		if (!open) return;
@@ -113,7 +115,11 @@
 						</Button>
 					{/if}
 				</div>
-				<p class="text-xs text-muted-foreground">Uhrzeit optional – ohne Uhrzeit gilt der ganze Tag.</p>
+				{#if gapNote}
+					<p class="text-xs text-amber-700 dark:text-amber-400" role="status">{gapNote}</p>
+				{:else}
+					<p class="text-xs text-muted-foreground">Uhrzeit optional – ohne Uhrzeit gilt der ganze Tag.</p>
+				{/if}
 			</div>
 
 			{#if error}

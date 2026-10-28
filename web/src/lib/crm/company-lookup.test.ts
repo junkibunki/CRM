@@ -5,8 +5,10 @@ vi.mock('#lib/pb.js', () => ({ pb: { send: vi.fn() } }));
 
 import { pb } from '#lib/pb.js';
 import {
+	autoLookupDue,
 	fetchCompanyLookup,
 	lookupChips,
+	lookupLocked,
 	lookupDomain,
 	lookupEmpty,
 	lookupErrorMessage,
@@ -101,5 +103,22 @@ describe('lookupChips', () => {
 	it('lookupEmpty: nothing but the website found', () => {
 		expect(lookupEmpty({ ...result, name: '', address: '', phone: '', email: '' })).toBe(true);
 		expect(lookupEmpty(result)).toBe(false);
+	});
+});
+
+describe('website lookup UX (F13b)', () => {
+	it('a running lookup blocks the button only for its own domain', () => {
+		expect(lookupLocked(true, 'alt.de', 'alt.de')).toBe(true);
+		// the website was edited during a long lookup: the new domain can be loaded at once
+		expect(lookupLocked(true, 'alt.de', 'neu.de')).toBe(false);
+		expect(lookupLocked(false, 'alt.de', 'alt.de')).toBe(false);
+		expect(lookupLocked(true, '', '')).toBe(false);
+	});
+
+	it('leaving the website field loads a domain not asked yet (autoLookup, e.g. from the lead dialog)', () => {
+		expect(autoLookupDue('firma.de', '')).toBe(true);
+		expect(autoLookupDue('firma.de', 'firma.de')).toBe(false); // already loaded / loading
+		expect(autoLookupDue('neu.de', 'firma.de')).toBe(true);
+		expect(autoLookupDue('', '')).toBe(false); // no usable domain in the field
 	});
 });

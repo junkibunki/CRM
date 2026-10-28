@@ -19,6 +19,8 @@ export type PreviewLookups = {
 	nextTodo?: (leadId: string) => OpenTodo | null | undefined;
 	/** latest activity of a lead (F4): null = none, undefined = not loaded / not available */
 	lastActivity?: (leadId: string) => LastActivity | null | undefined;
+	/** F12: labels of the requirements the lead has not fulfilled in the stage it sits in */
+	gateOpen?: (leadId: string, columnId: string) => string[];
 };
 
 export type PreviewData = {
@@ -39,6 +41,8 @@ export type PreviewData = {
 	closed: boolean;
 	/** latest activity: null = none, undefined = not known (then the row is hidden) */
 	lastActivity: LastActivity | null | undefined;
+	/** open requirements (labels) of the lead's stage, like the card's warning; [] = none */
+	gateOpen: string[];
 };
 
 // shared formatters: building Intl formatters per render is measurably slow
@@ -50,12 +54,6 @@ const day = new Intl.DateTimeFormat('de-DE', {
 	timeZone: 'UTC'
 });
 const dateTime = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
-
-/** Today as YYYY-MM-DD in local time (toISOString would be UTC: wrong between 0 and 2 am). */
-export function localDate(d = new Date()) {
-	const pad = (n: number) => String(n).padStart(2, '0');
-	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 /** YYYY-MM-DD -> 31.12.2026 */
 export function formatDay(date: string) {
@@ -109,8 +107,23 @@ export function previewData(
 		owner: lead.owner ? lookups.user(lead.owner) : '',
 		nextTodo: lookups.nextTodo?.(lead.id),
 		closed: !!column?.closed,
-		lastActivity: lookups.lastActivity?.(lead.id)
+		lastActivity: lookups.lastActivity?.(lead.id),
+		gateOpen: lookups.gateOpen?.(lead.id, loc.column) ?? []
 	};
+}
+
+// PocketBase record ids: 15 characters a-z0-9 (anything else in the URL is ignored)
+const RECORD_ID = /^[a-z0-9]{15}$/;
+
+/** Link that opens the quick view of a lead on the pipeline (read back by leadFromQuery). */
+export function previewHref(leadId: string): string {
+	return `/leads?lead=${encodeURIComponent(leadId)}`;
+}
+
+/** `/leads?lead=<id>` (e.g. from "Meine To-Dos"): the lead whose quick view opens, or null. */
+export function leadFromQuery(params: Pick<URLSearchParams, 'get'>): string | null {
+	const id = params.get('lead')?.trim() ?? '';
+	return RECORD_ID.test(id) ? id : null;
 }
 
 /**

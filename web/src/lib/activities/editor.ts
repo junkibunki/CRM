@@ -92,14 +92,8 @@ export function editorHtml(editor: Editor): string {
 	return box.innerHTML;
 }
 
-// table look in the editor: cell borders, so cells can be found and typed into
-const TABLE_CLASSES = [
-	'[&_table]:w-full [&_table]:border-collapse [&_table]:table-fixed',
-	'[&_td]:border [&_th]:border [&_td]:px-2 [&_th]:px-2 [&_td]:py-1 [&_th]:py-1',
-	'[&_td]:align-top [&_th]:align-top [&_th]:bg-muted [&_th]:text-left [&_th]:font-semibold',
-	'[&_.selectedCell]:bg-primary/10'
-].join(' ');
-
+// The table look (borders, padding, header) comes from activity-html.css, the same rules as in
+// the timeline; the editor's own additions (fixed columns, selected cells) are there too.
 export function createEditor(opts: {
 	element: HTMLElement;
 	content: string;
@@ -133,7 +127,7 @@ export function createEditor(opts: {
 		],
 		editorProps: {
 			attributes: {
-				class: `activity-html min-h-40 px-3 py-2 outline-none ${TABLE_CLASSES}`,
+				class: 'activity-html min-h-40 px-3 py-2 outline-none',
 				role: 'textbox',
 				'aria-multiline': 'true',
 				'aria-label': opts.label

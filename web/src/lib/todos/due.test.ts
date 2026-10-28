@@ -10,7 +10,9 @@ import {
 	compareTodos,
 	daysFrom,
 	dueDay,
+	dueGapNote,
 	dueStatus,
+	formatDone,
 	formatDue,
 	fromDueInput,
 	localDay,
@@ -187,5 +189,41 @@ describe('localDay / titleFromText', () => {
 		const long = titleFromText('x'.repeat(400), 300);
 		expect(long).toHaveLength(300);
 		expect(long.endsWith('…')).toBe(true);
+	});
+});
+
+describe('dueGapNote: times skipped when summer time starts', () => {
+	it('names the time that is saved instead (29 Mar 2026: 02:00 -> 03:00 in Berlin)', () => {
+		expect(fromDueInput('2026-03-29', '02:30')!.due).toBe('2026-03-29 01:30:00.000Z'); // = 03:30 CEST
+		expect(dueGapNote('2026-03-29', '02:30')).toBe(
+			'02:30 Uhr gibt es am 29.03.26 wegen der Zeitumstellung nicht – gespeichert wird 03:30 Uhr.'
+		);
+	});
+
+	it('is silent for existing times, the autumn change, no time and incomplete input', () => {
+		expect(dueGapNote('2026-03-29', '01:59')).toBe('');
+		expect(dueGapNote('2026-03-29', '03:00')).toBe('');
+		expect(dueGapNote('2026-10-25', '02:30')).toBe(''); // exists (twice)
+		expect(dueGapNote('2026-03-29', '')).toBe('');
+		expect(dueGapNote('', '02:30')).toBe('');
+		expect(dueGapNote('2026-03-2', '02:30')).toBe('');
+	});
+});
+
+describe('formatDone', () => {
+	const now = local(2026, 10, 28, 12);
+	it('says when a to-do was ticked off', () => {
+		expect(formatDone(local(2026, 10, 28, 9).toISOString().replace('T', ' '), now)).toBe('erledigt heute');
+		expect(formatDone(local(2026, 10, 27, 23, 30).toISOString().replace('T', ' '), now)).toBe('erledigt gestern');
+		expect(formatDone(local(2026, 10, 2, 8).toISOString().replace('T', ' '), now)).toBe('erledigt am 02.10.26');
+	});
+
+	it('uses the local day (00:30 in Berlin is the previous day in UTC)', () => {
+		expect(formatDone('2026-10-27 23:30:00.000Z', now)).toBe('erledigt heute');
+	});
+
+	it('falls back to plain "erledigt" without a time', () => {
+		expect(formatDone('', now)).toBe('erledigt');
+		expect(formatDone('kaputt', now)).toBe('erledigt');
 	});
 });

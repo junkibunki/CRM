@@ -257,14 +257,47 @@ describe('LeadStore: stage change', () => {
 		expect(store.deleted).toBe(true);
 	});
 
-	it('gives the target stage fresh ranks when its last key is unusable', async () => {
+	it('gives the target stage fresh ranks in one batch when its last key is unusable', async () => {
 		mock.set('leads', [lead('l1', 'c1', 'a0'), lead('y1', 'c2', 'a0'), lead('y2', 'c2', 'b')]);
 		await store.moveToStage('c2');
-		const ranks = new Map(leadUpdates().map((u) => [u.args[0], (u.args[1] as { rank: string }).rank]));
-		expect([...ranks.keys()].sort()).toEqual(['l1', 'y1', 'y2']);
+		const batches = mock.calls.filter((c) => c.method === 'batch');
+		expect(batches).toHaveLength(1);
+		const reqs = batches[0].args[0] as { collection: string; id: string; data: { rank: string } }[];
+		expect(reqs.map((r) => [r.collection, r.id])).toEqual([
+			['leads', 'y1'],
+			['leads', 'y2']
+		]);
+		// besides the batch only the move itself
+		expect(leadUpdates().map((u) => u.args[0])).toEqual(['l1']);
+		const ranks = new Map(reqs.map((r) => [r.id, r.data.rank]));
+		ranks.set('l1', (leadUpdates()[0].args[1] as { rank: string }).rank);
 		const order = ['y1', 'y2', 'l1'].map((id) => ranks.get(id)!);
 		expect([...order].sort()).toEqual(order); // the lead ends up last
 		expect(new Set(order).size).toBe(3);
+	});
+
+	it('no rollback when someone else moved it to exactly the same place while ours failed', async () => {
+		const release = mock.hold('leads', 'update');
+		mock.fail('update', apiError(500, 'boom'), 'leads');
+		const pending = store.moveToStage('c2');
+		await flush();
+		expect(store.lead?.column).toBe('c2');
+		mock.emit('leads', 'update', lead('l1', 'c2', store.lead!.rank));
+		release();
+		await pending;
+		expect(store.lead?.column).toBe('c2'); // where the server has it
+		expect(store.error).not.toBe('');
+	});
+
+	it('does not move when the re-rank batch fails, and checks the session on a guest answer', async () => {
+		mock.set('leads', [lead('l1', 'c1', 'a0'), lead('y1', 'c2', 'a0'), lead('y2', 'c2', 'b')]);
+		mock.fail('batch', apiError(400, 'Batch transaction failed.'));
+		mock.invalidateSession();
+		await store.moveToStage('c2');
+		expect(leadUpdates()).toHaveLength(0);
+		expect(store.lead?.column).toBe('c1');
+		expect(mock.db.leads!.map((l) => l.rank)).toEqual(['a0', 'a0', 'b']); // nothing half saved
+		expect(mock.pb.authStore.token).toBe(''); // invalid session: logged out
 	});
 });
 
@@ -275,16 +308,25 @@ describe('LeadStore: edit and delete (calls made by LeadDialog)', () => {
 		expect(leadUpdates()[0].args).toEqual(['l1', { title: 'Geändert' }]);
 	});
 
-	it('rolls back a failed edit, but not a field someone else changed meanwhile', async () => {
+	it('rolls back a failed edit when nothing arrived meanwhile', async () => {
+		mock.fail('update', apiError(400, 'invalid'), 'leads');
+		await store.updateLead('l1', { title: 'Mein Titel', owner: 'u2' });
+		expect(store.lead?.title).toBe('Lead l1');
+		expect(store.lead?.owner).toBe('u1');
+		expect(store.error).not.toBe('');
+	});
+
+	it('a failed edit keeps what someone else saved meanwhile, also the same value as ours', async () => {
 		const release = mock.hold('leads', 'update');
 		mock.fail('update', apiError(400, 'invalid'), 'leads');
 		const done = store.updateLead('l1', { title: 'Mein Titel', owner: 'u2' });
 		await flush();
+		// B saved another title and, by chance, the same owner as we did
 		mock.emit('leads', 'update', lead('l1', 'c1', 'a0', { title: 'Fremder Titel', owner: 'u2' }));
 		release();
 		await done;
 		expect(store.lead?.title).toBe('Fremder Titel');
-		expect(store.lead?.owner).toBe('u1'); // ours, rolled back
+		expect(store.lead?.owner).toBe('u2'); // B's value (the server has it), not rolled back to u1
 		expect(store.error).not.toBe('');
 	});
 

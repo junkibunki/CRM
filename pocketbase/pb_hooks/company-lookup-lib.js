@@ -49,9 +49,11 @@ function normalizeDomain(input) {
 		}
 	}
 	var tld = labels[labels.length - 1];
-	// a numeric last label means an IP literal (also 0x7f.1, 2130706433.x …)
 	if (!/^(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/.test(tld)) {
-		return { error: 'IP-Adressen sind nicht erlaubt, nur Domains.' };
+		// a numeric last label means an IP literal (127.0.0.1, 0x7f.1 …); anything else is just
+		// no valid ending (firma.d3, firma.de-x, firma.x)
+		if (/^(?:\d+|0x[0-9a-f]+)$/.test(tld)) return { error: 'IP-Adressen sind nicht erlaubt, nur Domains.' };
+		return { error: 'Ungültige Domain-Endung „' + tld + '“.' };
 	}
 	if (RESERVED_TLDS[tld]) return { error: 'Interne oder reservierte Domains sind nicht erlaubt.' };
 	if (labels[0] === 'www' && labels.length > 2) d = labels.slice(1).join('.');

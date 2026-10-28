@@ -2,6 +2,7 @@
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import UserRoundIcon from '@lucide/svelte/icons/user-round';
 	import { companyName, userLabel } from '#lib/collection.svelte.js';
+	import { previewHref } from '#lib/kanban/preview.js';
 	import { cn } from '#lib/utils.js';
 	import { clock } from './clock.svelte';
 	import { dueStatus, formatDue } from './due';
@@ -40,10 +41,11 @@
 				{due}
 			</span>
 			{#if lead}
+				<!-- the quick view on the pipeline (it has "Öffnen" for the detail page) -->
 				<a
-					href="/leads/{lead.id}"
+					href={previewHref(lead.id)}
 					class="min-w-0 truncate font-medium text-primary hover:underline"
-					title="Lead öffnen"
+					title="Schnellansicht des Leads öffnen"
 				>
 					{lead.title}
 				</a>
@@ -59,7 +61,7 @@
 					</span>
 				{/if}
 			{:else}
-				<a href="/leads/{todo.lead}" class="text-primary hover:underline">Lead öffnen</a>
+				<a href={previewHref(todo.lead)} class="text-primary hover:underline">Lead öffnen</a>
 			{/if}
 		</div>
 	</div>
