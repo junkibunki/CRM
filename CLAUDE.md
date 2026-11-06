@@ -114,7 +114,7 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       │   │                      # (bei Reconnect + Tab-Fokus; abgelaufen = Gast, kein 401)
 │       │   ├── theme.svelte.ts    # Hell/Dunkel: Klasse .dark auf <html>, gespeicherte Wahl
 │       │   │                      # oder Gerät (app.html setzt sie vor dem ersten Bild)
-│       │   ├── profile/           # UserMenu (Avatar-Kreis oben rechts: Profil, Dunkel-Schalter,
+│       │   ├── profile/           # UserMenu (Avatar-Kreis oben rechts: Profil, Dark-Mode-Schalter,
 │       │   │                      # Abmelden), UserAvatar, AvatarCard, avatar.ts (Upload, Initialen)
 │       │   ├── types.ts           # Record-Typen (Company, Contact, Lead, …), Farben,
 │       │   │                      # Kartenfelder, Datums-Helfer, DnD-Daten

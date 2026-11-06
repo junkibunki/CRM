@@ -46,7 +46,7 @@
 			class="flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
 		>
 			<MoonIcon />
-			<span class="flex-1">Dunkles Design</span>
+			<span class="flex-1">Dark Mode</span>
 			<span
 				aria-hidden="true"
 				class="inline-flex h-[18px] w-8 shrink-0 items-center rounded-full border border-transparent p-px transition-colors {theme.dark
