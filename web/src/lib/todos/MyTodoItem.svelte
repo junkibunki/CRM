@@ -44,7 +44,7 @@
 				<!-- the quick view on the pipeline (its expand button opens the detail page) -->
 				<a
 					href={previewHref(lead.id)}
-					class="min-w-0 truncate font-medium text-primary hover:underline"
+					class="min-w-0 truncate font-medium text-link hover:underline"
 					title="Schnellansicht des Leads öffnen"
 				>
 					{lead.title}
@@ -61,7 +61,7 @@
 					</span>
 				{/if}
 			{:else}
-				<a href={previewHref(todo.lead)} class="text-primary hover:underline">Lead öffnen</a>
+				<a href={previewHref(todo.lead)} class="text-link hover:underline">Lead öffnen</a>
 			{/if}
 		</div>
 	</div>

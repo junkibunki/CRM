@@ -35,12 +35,12 @@
 					{#if c.email || c.phone}
 						<div class="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
 							{#if c.email}
-								<a href="mailto:{c.email}" class="flex min-w-0 items-center gap-1 text-primary hover:underline">
+								<a href="mailto:{c.email}" class="flex min-w-0 items-center gap-1 text-link hover:underline">
 									<MailIcon class="size-3 shrink-0" /><span class="truncate">{c.email}</span>
 								</a>
 							{/if}
 							{#if c.phone && telHref(c.phone)}
-								<a href={telHref(c.phone)} class="flex items-center gap-1 text-primary hover:underline">
+								<a href={telHref(c.phone)} class="flex items-center gap-1 text-link hover:underline">
 									<PhoneIcon class="size-3 shrink-0" />{c.phone}
 								</a>
 							{:else if c.phone}

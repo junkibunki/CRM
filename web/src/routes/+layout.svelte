@@ -38,7 +38,10 @@
 	<!-- phones (390 px): tighter gaps; the navigation scrolls sideways instead of pushing the
 	     user menu (profile, dark mode, logout) off the screen -->
 	<header class="flex h-(--header-h) items-center gap-2 border-b bg-card px-3 sm:gap-6 sm:px-4">
-		<a href="/leads" class="shrink-0 font-semibold">CRM</a>
+		<a href="/leads" class="flex shrink-0 items-center gap-2" aria-label="BlueBerk CRM – Leads">
+			<span class="bb-logo h-7 text-bb-navy dark:text-foreground" aria-hidden="true"></span>
+			<span class="border-l pl-2 text-sm font-semibold text-muted-foreground">CRM</span>
+		</a>
 		<nav class="flex min-w-0 flex-1 gap-1 overflow-x-auto text-sm" aria-label="Hauptnavigation">
 			{#each NAV as item (item.href)}
 				<a

@@ -358,7 +358,7 @@
 				{#if removed.length}
 					<p class="text-xs text-muted-foreground">
 						{removed.length === 1 ? '1 Anhang wird' : `${removed.length} Anhänge werden`} beim Speichern entfernt.
-						<button type="button" class="font-medium text-primary hover:underline" onclick={() => (removed = [])}>Rückgängig</button>
+						<button type="button" class="font-medium text-link hover:underline" onclick={() => (removed = [])}>Rückgängig</button>
 					</p>
 				{/if}
 			</div>

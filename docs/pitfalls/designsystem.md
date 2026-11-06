@@ -3,7 +3,7 @@
 Lesen, bevor du an UI-Komponenten, `app.css` oder Layout arbeitest.
 
 Alle UI-Bausteine kommen aus **shadcn-svelte** (Style `vega`, Basisfarbe `neutral`,
-Primärfarbe blau), das Layout aus Tailwind-Utilities. Icons: `@lucide/svelte`, einzeln
+Farben aus dem BlueBerk-Modul, siehe unten), das Layout aus Tailwind-Utilities. Icons: `@lucide/svelte`, einzeln
 importiert (`@lucide/svelte/icons/<name>`), damit nur genutzte Icons im Bundle landen.
 
 ## Werkzeug
@@ -23,6 +23,25 @@ importiert (`@lucide/svelte/icons/<name>`), damit nur genutzte Icons im Bundle l
   zugunsten von Subpath-Imports entfernt. Die CLI übernimmt die Aliase wörtlich in die
   generierten Imports (`from "#lib/utils.js"`), das funktioniert.
 * Die generierten Dateien nutzen doppelte Anführungszeichen — so lassen, nicht umformatieren.
+
+## BlueBerk UI-Modul
+
+* **Farben, Schrift (Sora, selbst gehostet über `@fontsource-variable/sora`), Radius, Logo
+  und Button-Form stehen in `web/src/lib/brand/blueberk.css`**, nicht in `app.css`. Die Datei
+  ist für alle BlueBerk-Apps gedacht und bringt ihr eigenes `@theme inline` für `text-link`,
+  `bg-bb-*` und `font-sans` mit; `app.css` importiert sie und hält nur CRM-Eigenes.
+  Text- und Ring-Farben als Hex — `tokens.test.ts` prüft daraus die Kontraste (Text 4,5:1,
+  Fokus-Ring 3:1) hell und dunkel. `--border`/`--input` dunkel sind `rgb(… / %)`, ungeprüft.
+* **Fokus-Ring hell nicht Lime:** Lime hat auf Weiß ~1,7:1, der Ring wäre unsichtbar. Hell
+  Olive, dunkel Lime.
+* **Links: `text-link`, nicht `text-primary`.** Primär ist hell Navy und vom Fließtext kaum
+  zu unterscheiden; `--link` ist Olivgrün (hell) bzw. helles Lime `#bfe25a` (dunkel).
+* **Buttons sind Pillen** über eine Regel auf `button/a[data-slot=button]` (schlägt die
+  `rounded-*`-Klassen der generierten Komponente). Eckig nur mit `!rounded-*`.
+* **Logo:** `<span class="bb-logo h-7 text-bb-navy dark:text-foreground">` — das PNG neben
+  `blueberk.css` ist eine Maske, nimmt die Textfarbe an und wird von Vite mitgebündelt.
+* **vitest liefert CSS-Importe leer, auch `?raw`.** Tests, die eine CSS-Datei lesen, nehmen
+  `readFileSync('src/…')` (unter jsdom ist `import.meta.url` keine `file:`-URL).
 
 ## Tailwind v4
 

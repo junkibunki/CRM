@@ -65,7 +65,7 @@
 									href={c.website}
 									target="_blank"
 									rel="noopener noreferrer"
-									class="text-primary hover:underline"
+									class="text-link hover:underline"
 									onclick={(e) => e.stopPropagation()}>{c.website.replace(/^https?:\/\//, '')}</a
 								>
 							{/if}

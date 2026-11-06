@@ -41,21 +41,21 @@
 							href={websiteHref(company.website)}
 							target="_blank"
 							rel="noopener noreferrer"
-							class="truncate text-primary hover:underline">{websiteLabel(company.website)}</a
+							class="truncate text-link hover:underline">{websiteLabel(company.website)}</a
 						>
 					</li>
 				{/if}
 				{#if company.email}
 					<li class="flex items-center gap-2">
 						<MailIcon class="size-4 shrink-0 text-muted-foreground" />
-						<a href="mailto:{company.email}" class="truncate text-primary hover:underline">{company.email}</a>
+						<a href="mailto:{company.email}" class="truncate text-link hover:underline">{company.email}</a>
 					</li>
 				{/if}
 				{#if company.phone}
 					<li class="flex items-center gap-2">
 						<PhoneIcon class="size-4 shrink-0 text-muted-foreground" />
 						{#if telHref(company.phone)}
-							<a href={telHref(company.phone)} class="text-primary hover:underline">{company.phone}</a>
+							<a href={telHref(company.phone)} class="text-link hover:underline">{company.phone}</a>
 						{:else}
 							{company.phone}
 						{/if}

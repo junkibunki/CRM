@@ -1,0 +1,107 @@
+/* BlueBerk UI-Modul: Markenfarben, Schrift, Logo und Button-Form für alle BlueBerk-Apps.
+   Werte von blueberk.de (Stand 11/2026). Die semantischen Namen folgen shadcn
+   (--primary, --muted, ...), damit eine andere App die Datei 1:1 übernehmen kann.
+   Dezent gehalten: Flächen bleiben hell/neutral, die Marke steckt in Schrift, Logo,
+   Primär-Buttons (Navy, dunkel: Lime), Fokus-Ring, Auswahl und Links.
+   Farben als Hex -- tokens.test.ts prüft daraus die Kontraste (WCAG AA). */
+
+@import '@fontsource-variable/sora';
+
+:root {
+	/* Palette (fest, in beiden Modi gleich) */
+	--bb-lime: #abd737;
+	--bb-olive: #607b26;
+	--bb-navy: #2d3042;
+	--bb-slate: #85979b;
+	--bb-ink: #17252a;
+	--bb-font: 'Sora Variable', ui-sans-serif, system-ui, sans-serif;
+
+	--radius: 0.625rem;
+
+	--background: #f7f8f9;
+	--foreground: var(--bb-ink);
+	--card: #ffffff;
+	--card-foreground: var(--bb-ink);
+	--popover: #ffffff;
+	--popover-foreground: var(--bb-ink);
+	--primary: var(--bb-navy);
+	--primary-foreground: #ffffff;
+	--secondary: #eef0f3;
+	--secondary-foreground: var(--bb-navy);
+	--muted: #eff1f3;
+	--muted-foreground: #5c676d;
+	--accent: #eef6d6;
+	--accent-foreground: #3d4f10;
+	--destructive: #e7000b;
+	--border: #e3e7ea;
+	--input: #dde2e5;
+	/* Lime hat auf Weiß nur ~1,7:1 -- hell daher Olive, damit der Fokus sichtbar bleibt */
+	--ring: var(--bb-olive);
+	--link: var(--bb-olive);
+}
+
+/* Dunkel über die Klasse .dark auf <html> (shadcn-Konvention). Wer dem Gerät folgen will,
+   setzt sie per Skript aus prefers-color-scheme (im CRM: app.html + lib/theme.svelte.ts). */
+.dark {
+	--background: #1b1d27;
+	--foreground: #eef1f3;
+	--card: #242735;
+	--card-foreground: #eef1f3;
+	--popover: #242735;
+	--popover-foreground: #eef1f3;
+	--primary: var(--bb-lime);
+	--primary-foreground: #1b1d27;
+	--secondary: #2e3243;
+	--secondary-foreground: #eef1f3;
+	--muted: #2a2d3b;
+	--muted-foreground: #9ba7ad;
+	--accent: #323b25;
+	--accent-foreground: #d2ea8f;
+	--destructive: #ff6467;
+	--border: rgb(255 255 255 / 10%);
+	--input: rgb(255 255 255 / 15%);
+	--ring: var(--bb-lime);
+	--link: #bfe25a;
+}
+
+/* Buttons als Pille wie auf der Webseite. Bewusst mit Element im Selektor (0,1,1):
+   schlägt so die rounded-*-Klassen der generierten Button-Komponente (0,1,0), die wir
+   nicht händisch ändern. Ein eckiger Button braucht ein !rounded-*. */
+@layer utilities {
+	button[data-slot='button'],
+	a[data-slot='button'] {
+		border-radius: calc(infinity * 1px);
+	}
+}
+
+/* Tailwind-Namen: text-link, bg-bb-lime, ... und Sora als font-sans. Steht hier, damit eine
+   andere Tailwind-App mit dieser einen Datei alles bekommt (die shadcn-Namen mappt jede App
+   in ihrem eigenen @theme). Ohne Tailwind ignoriert der Browser den Block. */
+@theme inline {
+	--color-link: var(--link);
+	--color-bb-lime: var(--bb-lime);
+	--color-bb-olive: var(--bb-olive);
+	--color-bb-navy: var(--bb-navy);
+	--color-bb-slate: var(--bb-slate);
+	--color-bb-ink: var(--bb-ink);
+	--font-sans: var(--bb-font);
+}
+
+/* Logo als Maske: nimmt die Textfarbe an (currentColor), passt also in hell und dunkel.
+   Die PNGs liegen neben dieser Datei; Vite bündelt sie mit (relativ, auch mit base path). */
+.bb-logo,
+.bb-mark {
+	display: inline-block;
+	background-color: currentColor;
+	mask-position: center;
+	mask-size: contain;
+	mask-repeat: no-repeat;
+}
+.bb-logo {
+	mask-image: url('./blueberk-logo.png');
+	aspect-ratio: 284 / 96;
+}
+.bb-mark {
+	mask-image: url('./blueberk-mark.png');
+	aspect-ratio: 77 / 128;
+}

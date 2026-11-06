@@ -160,7 +160,7 @@
 			{/if}
 		</div>
 		{#if long}
-			<button type="button" class="mt-1 text-xs font-medium text-primary hover:underline" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
+			<button type="button" class="mt-1 text-xs font-medium text-link hover:underline" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
 				{expanded ? 'weniger' : 'mehr'}
 			</button>
 		{/if}
@@ -169,7 +169,7 @@
 			<p class="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
 				<ImageOffIcon class="size-3.5" />
 				{clean.blockedImages === 1 ? '1 externes Bild' : `${clean.blockedImages} externe Bilder`} nicht geladen (Schutz vor Tracking).
-				<button type="button" class="font-medium text-primary hover:underline" onclick={loadImages}>Bilder anzeigen</button>
+				<button type="button" class="font-medium text-link hover:underline" onclick={loadImages}>Bilder anzeigen</button>
 			</p>
 		{/if}
 

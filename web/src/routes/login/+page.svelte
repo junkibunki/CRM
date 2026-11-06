@@ -31,6 +31,7 @@
 		<!-- the form carries the card's spacing, see docs/pitfalls/designsystem.md -->
 		<form class="flex flex-col gap-(--card-spacing)" onsubmit={submit}>
 			<Card.Header>
+				<span class="bb-logo mb-3 h-8 justify-self-start text-bb-navy dark:text-foreground" aria-hidden="true"></span>
 				<Card.Title>CRM Anmeldung</Card.Title>
 			</Card.Header>
 			<Card.Content class="grid gap-4">

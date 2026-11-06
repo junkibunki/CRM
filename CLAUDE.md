@@ -143,6 +143,8 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       │   │                      # (Website-Daten über die Hook-Route)
 │       │   ├── components/        # ConfirmDialog, PageHeader (Titel + Suche + Aktionen),
 │       │   │                      # dialog/ (Wrapper: „Schließen" – Dialoge von hier importieren)
+│       │   ├── brand/             # BlueBerk UI-Modul (alle Apps): blueberk.css (Farben, Sora, Logo,
+│       │   │                      # Pill-Buttons), tokens.ts (Kontrast, rein), Logo-Masken (PNG)
 │       │   ├── components/ui/     # shadcn-svelte, CLI-Output (nicht händisch pflegen)
 │       │   └── utils.ts           # cn() = clsx + tailwind-merge
 │       └── routes/                # +layout.ts (ssr=false), +layout.svelte (Guard +

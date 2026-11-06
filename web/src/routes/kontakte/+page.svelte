@@ -62,7 +62,7 @@
 							{#if c.email}
 								<a
 									href="mailto:{c.email}"
-									class="text-primary hover:underline"
+									class="text-link hover:underline"
 									onclick={(e) => e.stopPropagation()}>{c.email}</a
 								>
 							{/if}
