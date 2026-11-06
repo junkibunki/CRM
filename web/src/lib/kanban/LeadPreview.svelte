@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ClockIcon from '@lucide/svelte/icons/clock';
@@ -111,10 +112,29 @@
 </script>
 
 <Dialog.Root bind:open>
-	<Dialog.Content class="sm:max-w-md" {onCloseAutoFocus}>
+	<Dialog.Content class="sm:max-w-md" showCloseButton={false} {onCloseAutoFocus}>
 		{#if shown}
 			{@const v = shown}
-			<Dialog.Header class="pr-8">
+			<div class="-mt-2 flex items-center justify-between gap-2">
+				<Dialog.Close>
+					{#snippet child({ props })}
+						<Button variant="ghost" size="sm" class="-ml-2" {...props}>
+							<ArrowLeftIcon /> Zurück
+						</Button>
+					{/snippet}
+				</Dialog.Close>
+				<Button
+					href="/leads/{v.lead.id}"
+					variant="ghost"
+					size="icon-sm"
+					class="-mr-2"
+					title="Vollbild öffnen"
+					aria-label="Vollbild öffnen"
+				>
+					<ExpandIcon />
+				</Button>
+			</div>
+			<Dialog.Header>
 				<Dialog.Title class="leading-snug break-words">{v.lead.title}</Dialog.Title>
 				<Dialog.Description class="flex items-center gap-2">
 					<span class={cn('size-2.5 shrink-0 rounded-full', v.dot)}></span>
@@ -237,14 +257,6 @@
 
 			<Dialog.Footer>
 				<Button variant="outline" onclick={edit}>Bearbeiten</Button>
-				<Button
-					href="/leads/{v.lead.id}"
-					size="icon"
-					title="Vollbild öffnen"
-					aria-label="Vollbild öffnen"
-				>
-					<ExpandIcon />
-				</Button>
 			</Dialog.Footer>
 		{/if}
 	</Dialog.Content>

@@ -83,13 +83,28 @@ afterEach(() => {
 });
 
 describe('LeadPreview', () => {
-	it('shows the lead and a German close button for screen readers', () => {
+	it('shows the lead with "Zurück" top left instead of an X, the full view link top right', () => {
 		show('l1');
 		expect(document.body.textContent).toContain('Lead l1');
 		const close = [...document.querySelectorAll('[data-slot="dialog-close"]')];
 		expect(close).toHaveLength(1);
-		expect(close[0].textContent).toContain('Schließen');
+		expect(close[0].textContent?.trim()).toBe('Zurück');
+		expect(document.body.textContent).not.toContain('Schließen');
 		expect(document.body.textContent).not.toContain('Close');
+		// back button and full view link share the top row, before the title
+		const full = document.querySelector('a[aria-label="Vollbild öffnen"]');
+		expect(full?.getAttribute('href')).toBe('/leads/l1');
+		expect(full?.parentElement).toBe(close[0].parentElement);
+		const title = document.querySelector('[data-slot="dialog-title"]')!;
+		expect(close[0].compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
+	it('closes with "Zurück"', () => {
+		show('l1');
+		button('Zurück')!.click();
+		flushSync();
+		expect(open).toBe(false);
+		expect(onedit).not.toHaveBeenCalled();
 	});
 
 	it('closes with a notice when someone else deletes the lead while it is open', async () => {
