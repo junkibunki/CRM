@@ -11,7 +11,11 @@ export interface Activity extends RecordModel {
 	body: string;
 	/** PocketBase date string: when it happened (not when it was entered) */
 	occurred_at: string;
+	/** participants / sender / recipients (contacts) */
 	contacts: string[];
+	/** internal participants of a meeting (users); empty for other types. Missing on
+	 * records loaded before migration 1793190008 ran. */
+	team?: string[];
 	/** stored file names (protected: download needs a file token) */
 	attachments: string[];
 	/** stored name -> original name; written only by the attachment-names hook */
@@ -22,7 +26,7 @@ export interface Activity extends RecordModel {
 }
 
 /** The fields the form edits; only the changed ones are sent on update. */
-export type ActivityData = Pick<Activity, 'type' | 'subject' | 'body' | 'occurred_at' | 'contacts'>;
+export type ActivityData = Pick<Activity, 'type' | 'subject' | 'body' | 'occurred_at' | 'contacts'> & { team: string[] };
 
 export const ACTIVITY_TYPES: { key: ActivityType; label: string }[] = [
 	{ key: 'note', label: 'Notiz' },

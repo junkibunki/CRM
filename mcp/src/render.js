@@ -57,7 +57,7 @@ function attachmentNames(a) {
 }
 
 /**
- * An activity: header line (date, type, author, contacts, lead) and, fenced as data, its
+ * An activity: header line (date, type, author, contacts, internal participants, lead) and, fenced as data, its
  * subject, attachment names and text (HTML -> text, cut to maxChars).
  * `excerpt` = the body is already plain text (PocketBase `body:excerpt`).
  */
@@ -66,6 +66,9 @@ export function activityBlock(a, tz, maxChars, { excerpt = false, nonce } = {}) 
 	if (a.expand?.author) head.push(`von ${userName(a.expand.author)}`);
 	const contacts = a.expand?.contacts ?? [];
 	if (contacts.length) head.push(`Kontakte: ${contacts.map(contactName).join(', ')}`);
+	// internal participants belong to meetings only (the web app shows them there too)
+	const team = a.type === 'meeting' ? (a.expand?.team ?? []) : [];
+	if (team.length) head.push(`Intern: ${team.map(userName).join(', ')}`);
 	if (a.expand?.lead) head.push(`Lead: ${inline(a.expand.lead.title)} (lead: ${a.expand.lead.id})`);
 	const meta = [];
 	if (a.subject) meta.push(`Betreff: ${inline(a.subject, 500)}`);

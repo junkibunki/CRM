@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import PaperclipIcon from '@lucide/svelte/icons/paperclip';
+	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { contactLabel, contacts } from '#lib/collection.svelte.js';
+	import { companyName, contactLabel, contacts, userLabel, users } from '#lib/collection.svelte.js';
+	import ContactDialog from '#lib/crm/ContactDialog.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Dialog from '#lib/components/dialog/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -13,6 +15,7 @@
 	import type { ActivityStore } from './activities.svelte';
 	import { TYPE_STYLE } from './ActivityItem.svelte';
 	import { attachmentName, formatSize, fromDateTimeInput, toDateTimeInput, toPbDate } from './format';
+	import { participantOptions, teamFor, withId } from './participants';
 	import RichTextEditor from './RichTextEditor.svelte';
 	import { isEmptyHtml } from './sanitize';
 	import {
@@ -33,7 +36,15 @@
 	};
 	let { store, activity, open = $bindable() }: Props = $props();
 
-	let form = $state({ type: 'note' as ActivityType, subject: '', body: '', occurred_at: '', contacts: [] as string[] });
+	let form = $state({
+		type: 'note' as ActivityType,
+		subject: '',
+		body: '',
+		occurred_at: '',
+		contacts: [] as string[],
+		team: [] as string[]
+	});
+	let contactOpen = $state(false); // "Neue Person" (a contact at the lead's company)
 	let files = $state<File[]>([]); // new uploads
 	let removed = $state<string[]>([]); // stored names to delete
 	let error = $state('');
@@ -54,9 +65,17 @@
 						subject: a.subject,
 						body: a.body,
 						occurred_at: toDateTimeInput(a.occurred_at),
-						contacts: [...a.contacts]
+						contacts: [...a.contacts],
+						team: [...(a.team ?? [])]
 					}
-				: { type: 'note', subject: '', body: '', occurred_at: toDateTimeInput(toPbDate(new Date())), contacts: [] };
+				: {
+						type: 'note',
+						subject: '',
+						body: '',
+						occurred_at: toDateTimeInput(toPbDate(new Date())),
+						contacts: [],
+						team: []
+					};
 			initial = a ? toData() : null;
 			files = [];
 			removed = [];
@@ -71,15 +90,22 @@
 			subject: form.subject.trim(),
 			body: form.body,
 			occurred_at: fromDateTimeInput(form.occurred_at),
-			contacts: [...form.contacts]
+			contacts: [...form.contacts],
+			team: teamFor(form.type, form.team)
 		};
 	}
 
-	// the lead's contacts, plus any already chosen (e.g. removed from the lead since)
-	const contactOptions = $derived.by(() => {
-		const ids = new Set([...(store.lead?.contacts ?? []), ...form.contacts]);
-		return contacts.list.filter((c) => ids.has(c.id));
-	});
+	// the lead's contacts, everyone else at its company, and any already chosen
+	const leadCompany = $derived(store.lead?.company ?? '');
+	const contactOptions = $derived(
+		participantOptions(contacts.list, store.lead?.contacts ?? [], leadCompany, form.contacts)
+	);
+	const isMeeting = $derived(form.type === 'meeting');
+	// accounts plus chosen ones that are gone from the list (shown by id until removed)
+	const teamOptions = $derived([
+		...users.list.map((u) => u.id),
+		...form.team.filter((id) => !users.get(id))
+	]);
 
 	const kept = $derived((activity?.attachments ?? []).filter((n) => !removed.includes(n)));
 
@@ -206,20 +232,71 @@
 				<RichTextEditor bind:value={form.body} label="Inhalt" />
 			</div>
 
-			<div class="grid gap-1.5">
-				<Label>Kontakte</Label>
-				<Select.Root type="multiple" bind:value={form.contacts}>
-					<Select.Trigger class="w-full">
-						<span class="truncate">{form.contacts.map(contactLabel).join(', ') || 'Keine ausgewählt'}</span>
-					</Select.Trigger>
-					<Select.Content>
-						{#each contactOptions as c (c.id)}
-							<Select.Item value={c.id} label={contactLabel(c.id)} />
-						{:else}
-							<p class="px-2 py-1.5 text-sm text-muted-foreground">Der Lead hat keine Kontakte.</p>
-						{/each}
-					</Select.Content>
-				</Select.Root>
+			<div class={cn('grid gap-4', isMeeting && 'sm:grid-cols-2')}>
+				<div class="grid content-start gap-1.5">
+					<div class="flex items-center justify-between">
+						<Label id="activity-contacts-label">{isMeeting ? 'Teilnehmer (Kunde)' : 'Kontakte'}</Label>
+						{#if isMeeting && leadCompany}
+							<Button
+								type="button"
+								variant="ghost"
+								size="xs"
+								title="Neuen Kontakt bei {companyName(leadCompany) || 'dem Unternehmen'} anlegen und als Teilnehmer eintragen"
+								onclick={() => (contactOpen = true)}
+							>
+								<UserPlusIcon /> Neue Person
+							</Button>
+						{/if}
+					</div>
+					<Select.Root type="multiple" bind:value={form.contacts}>
+						<Select.Trigger class="w-full" aria-labelledby="activity-contacts-label">
+							<span class="truncate">
+								{form.contacts.map(contactLabel).filter(Boolean).join(', ') || (isMeeting ? 'optional' : 'Keine ausgewählt')}
+							</span>
+						</Select.Trigger>
+						<Select.Content>
+							{#if contactOptions.lead.length}
+								<Select.Group>
+									<Select.GroupHeading>Am Lead</Select.GroupHeading>
+									{#each contactOptions.lead as c (c.id)}
+										<Select.Item value={c.id} label={contactLabel(c.id)} />
+									{/each}
+								</Select.Group>
+							{/if}
+							{#if contactOptions.company.length}
+								<Select.Group>
+									<Select.GroupHeading>Weitere bei {companyName(leadCompany) || 'dem Unternehmen'}</Select.GroupHeading>
+									{#each contactOptions.company as c (c.id)}
+										<Select.Item value={c.id} label={contactLabel(c.id)} />
+									{/each}
+								</Select.Group>
+							{/if}
+							{#if !contactOptions.lead.length && !contactOptions.company.length}
+								<p class="px-2 py-1.5 text-sm text-muted-foreground">Keine Kontakte beim Unternehmen.</p>
+							{/if}
+						</Select.Content>
+					</Select.Root>
+				</div>
+
+				{#if isMeeting}
+					<div class="grid content-start gap-1.5">
+						<div class="flex h-6 items-center">
+							<Label id="activity-team-label">Teilnehmer (intern)</Label>
+						</div>
+						<Select.Root type="multiple" bind:value={form.team}>
+							<Select.Trigger class="w-full" aria-labelledby="activity-team-label">
+								<span class="truncate">
+									{form.team.map((id) => userLabel(id) || 'Unbekannt').join(', ') || 'optional'}
+								</span>
+							</Select.Trigger>
+							<Select.Content>
+								{#each teamOptions as id (id)}
+									<Select.Item value={id} label={userLabel(id) || 'Unbekannt'} />
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					</div>
+				{/if}
 			</div>
 
 			<div class="grid gap-1.5">
@@ -297,3 +374,11 @@
 		</form>
 	</Dialog.Content>
 </Dialog.Root>
+
+<!-- someone at the meeting for the first time: a new contact at the lead's company, chosen at once -->
+<ContactDialog
+	contact={null}
+	company={leadCompany}
+	bind:open={contactOpen}
+	onsaved={(c) => (form.contacts = withId(form.contacts, c.id))}
+/>

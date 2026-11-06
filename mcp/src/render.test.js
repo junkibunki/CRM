@@ -44,6 +44,16 @@ describe('activityBlock', () => {
 		assert.doesNotMatch(t, /<p>/);
 	});
 
+	it('a meeting names its internal participants after the contacts', () => {
+		const m = { ...a, type: 'meeting', expand: { ...a.expand, team: [anna, { id: 'u2', name: 'Ben' }] } };
+		const head = activityBlock(m, TZ, 50, { nonce: 'n1' }).split('\n')[0];
+		assert.match(head, / · Kontakte: Max Muster · Intern: Anna, Ben \(id: act000000000000\)$/);
+		assert.doesNotMatch(activityBlock(a, TZ, 50, { nonce: 'n1' }).split('\n')[0], /Intern/);
+		// set on another type through the API: not shown, as in the web app
+		const mail = { ...m, type: 'email_in' };
+		assert.doesNotMatch(activityBlock(mail, TZ, 50, { nonce: 'n1' }).split('\n')[0], /Intern/);
+	});
+
 	it('a crafted subject or file name cannot end the fence or add lines', () => {
 		const evil = {
 			...a,

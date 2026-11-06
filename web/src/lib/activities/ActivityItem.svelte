@@ -83,6 +83,7 @@
 	const clean = $derived(sanitizeHtml(activity.body, { allowImages: showImages }));
 	const style = $derived(TYPE_STYLE[activity.type] ?? TYPE_STYLE.note);
 	const people = $derived(activity.contacts.map(contactLabel).filter(Boolean));
+	const team = $derived(activity.type === 'meeting' ? (activity.team ?? []).map(userLabel).filter(Boolean) : []);
 
 	// "mehr" when the rendered text is taller than the collapsed box (measured; the estimate
 	// from sanitizeHtml only until the first measurement, or where it can't be measured)
@@ -141,6 +142,9 @@
 
 		{#if people.length}
 			<p class="text-xs text-muted-foreground">{style.people}: {people.join(', ')}</p>
+		{/if}
+		{#if team.length}
+			<p class="text-xs text-muted-foreground">Intern: {team.join(', ')}</p>
 		{/if}
 
 		<div class="relative mt-1">

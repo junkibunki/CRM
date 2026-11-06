@@ -142,10 +142,11 @@ export function registerTools(server, ctx) {
 				pb.collection('activities').getList(1, n, {
 					filter: pb.filter('lead = {:lead}', { lead: lead.id }),
 					sort: '-occurred_at,-created',
-					expand: 'author,contacts',
+					expand: 'author,contacts,team',
 					fields:
 						'id,type,subject,occurred_at,attachments,attachment_names,body:excerpt(300,true),' +
-						'expand.author.id,expand.author.name,expand.contacts.first_name,expand.contacts.last_name'
+						'expand.author.id,expand.author.name,expand.contacts.first_name,expand.contacts.last_name,' +
+						'expand.team.id,expand.team.name'
 				}),
 				pb.collection('todos').getFullList({
 					filter: pb.filter('lead = {:lead} && done = false', { lead: lead.id }),
@@ -315,10 +316,11 @@ export function registerTools(server, ctx) {
 			const r = await pb.collection('activities').getList(p, clampInt(limit, 10, 20), {
 				filter: parts.join(' && '),
 				sort: '-occurred_at,-created',
-				expand: lead ? 'author,contacts' : 'author,contacts,lead',
+				expand: lead ? 'author,contacts,team' : 'author,contacts,team,lead',
 				fields:
 					'id,type,subject,body,occurred_at,attachments,attachment_names,expand.author.id,expand.author.name,' +
-					'expand.contacts.first_name,expand.contacts.last_name,expand.lead.id,expand.lead.title'
+					'expand.contacts.first_name,expand.contacts.last_name,expand.team.id,expand.team.name,' +
+					'expand.lead.id,expand.lead.title'
 			});
 			return renderActivities({ title, items: r.items, page: r.page, totalPages: r.totalPages, totalItems: r.totalItems, tz, maxChars: clampInt(max_chars, 1500, 10000, 100), nonce });
 		})

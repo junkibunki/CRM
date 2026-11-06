@@ -9,7 +9,7 @@ Seite mit Live-Daten baust.
 |---|---|---|
 | `companies` | `name`* , `website`, `email`, `phone`, `address`, `notes` | – |
 | `contacts` | `last_name`*, `first_name`, `position`, `email`, `phone`, `notes` | `company` → companies (optional) |
-| `activities` | `type`* (`note`, `meeting`, `email_in`, `email_out`), `body`* (HTML, ≤ 1 MB), `occurred_at`*, `subject`, `attachments` (≤ 10 × 20 MB, **protected**) | `lead`* → leads (cascade), `contacts` → contacts, `author`* → users |
+| `activities` | `type`* (`note`, `meeting`, `email_in`, `email_out`), `body`* (HTML, ≤ 1 MB), `occurred_at`*, `subject`, `attachments` (≤ 10 × 20 MB, **protected**) | `lead`* → leads (cascade), `contacts` → contacts (Teilnehmer/Absender/Empfänger), `team` → users (interne Meeting-Teilnehmer, nur bei `meeting` gefüllt), `author`* → users |
 | `todos` | `title`*, `due`*, `due_has_time`, `done`, `done_at` | `lead`* → leads (cascade), `source_activity` → activities (ohne cascade), `created_by`* → users |
 | `lead_last_activity` | View: je Lead die letzte Aktivität (Art, Zeitpunkt, Auszug) | nur lesbar, keine Realtime-Events |
 | `stage_requirements` | `label`*, `type`* (`flag`, `text`), `hint`, `rank` | `column`* → board_columns (cascade, unveränderlich) |
@@ -42,7 +42,8 @@ Sperren eines Mitarbeiters genügt es, sein Passwort zu ändern.
 * **Lead löschen** löscht seine Aktivitäten und To-Dos mit (cascade). Eine gelöschte Notiz
   lässt ihre To-Dos stehen und leert `source_activity`. Konten mit To-Dos (`created_by`)
   lassen sich nicht löschen.
-* **Kontakt löschen** entfernt ihn auch aus `activities.contacts`.
+* **Kontakt löschen** entfernt ihn auch aus `activities.contacts`; ein gelöschtes Konto
+  verschwindet ebenso aus `activities.team`.
 * **Konten mit Aktivitäten** lassen sich (wie bei `leads.owner`) nicht löschen:
   `activities.author` ist Pflicht ohne cascade.
 

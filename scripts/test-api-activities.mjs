@@ -226,6 +226,26 @@ describe('activities: validation', () => {
 	});
 });
 
+describe('activities: internal participants (team)', () => {
+	it('any user can name colleagues; the name comes along with expand', async () => {
+		const r = await api('POST', '/api/collections/activities/records?expand=team', activity({ type: 'meeting', team: [anna.id, ben.id], author: ben.id }), ben.token);
+		assert.equal(r.status, 200);
+		assert.deepEqual(r.data.team, [anna.id, ben.id]);
+		assert.deepEqual(r.data.expand.team.map((u) => u.name), ['Anna', 'Ben']);
+	});
+
+	it('is optional, can be changed by another user and only takes existing accounts', async () => {
+		const r = await api('POST', '/api/collections/activities/records', activity({ type: 'meeting' }), anna.token);
+		assert.equal(r.status, 200);
+		assert.deepEqual(r.data.team, []);
+		const up = await api('PATCH', `/api/collections/activities/records/${r.data.id}`, { 'team+': [anna.id] }, ben.token);
+		assert.equal(up.status, 200);
+		assert.deepEqual(up.data.team, [anna.id]);
+		const bad = await api('PATCH', `/api/collections/activities/records/${r.data.id}`, { team: ['nouser000000000'] }, ben.token);
+		assert.equal(bad.status, 400);
+	});
+});
+
 describe('activities: protected attachments', () => {
 	let rec;
 	before(async () => {
@@ -280,6 +300,14 @@ describe('activities: deleting', () => {
 		const id = (await api('POST', '/api/collections/activities/records', activity({ lead: l.lead }), anna.token)).data.id;
 		assert.equal((await api('DELETE', `/api/collections/leads/records/${l.lead}`, null, anna.token)).status, 204);
 		assert.equal((await api('GET', `/api/collections/activities/records/${id}`, null, su)).status, 404);
+	});
+
+	it('a deleted account just disappears from the internal participants', async () => {
+		const carl = await createUser(su, 'carl@api.test', 'Carl');
+		const id = (await api('POST', '/api/collections/activities/records', activity({ type: 'meeting', team: [carl.id, ben.id] }), anna.token)).data.id;
+		assert.equal((await api('DELETE', `/api/collections/users/records/${carl.id}`, null, su)).status, 204);
+		const rec = await api('GET', `/api/collections/activities/records/${id}`, null, anna.token);
+		assert.deepEqual(rec.data.team, [ben.id]);
 	});
 
 	it('a contact can be deleted; it just disappears from the activity', async () => {

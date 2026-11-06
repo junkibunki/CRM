@@ -93,7 +93,8 @@ const data = (a: Activity): ActivityData => ({
 	subject: a.subject,
 	body: a.body,
 	occurred_at: a.occurred_at,
-	contacts: [...a.contacts]
+	contacts: [...a.contacts],
+	team: [...(a.team ?? [])]
 });
 
 let store: ActivityStore;
@@ -238,7 +239,8 @@ describe('ActivityStore: create', () => {
 		subject: 'Kick-off',
 		body: '<p>Protokoll</p>',
 		occurred_at: '2026-10-04 09:00:00.000Z',
-		contacts: ['c1']
+		contacts: ['c1'],
+		team: ['u1', 'u2']
 	};
 
 	it('creates for this lead as the current user and shows it once', async () => {
@@ -298,6 +300,14 @@ describe('ActivityStore: update', () => {
 		Object.assign(db.find((a) => a.id === 'a3')!, { body: '<p>fremd</p>', updated: stamp() });
 		await store.update('a3', initial, { ...initial, subject: 'unseres' });
 		expect(store.get('a3')).toMatchObject({ subject: 'unseres', body: '<p>fremd</p>' });
+	});
+
+	it('sends the internal participants only when they changed', async () => {
+		await start();
+		const initial = data(store.get('a3')!);
+		await store.update('a3', initial, { ...initial, team: ['u2'] });
+		expect(sent).toEqual([{ method: 'update', data: { team: ['u2'] } }]);
+		expect(store.get('a3')?.team).toEqual(['u2']);
 	});
 
 	it('sends nothing if nothing changed', async () => {
