@@ -138,6 +138,8 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       │   │                      # GateDialog, RequirementsEditor, GateBadge, GatesTile
 │       │   ├── last-activity/     # letzte Aktivität je Lead (View lead_last_activity)
 │       │   ├── test/pb-mock.ts    # PocketBase-Mock für Unit-Tests (*.test.ts neben dem Code)
+│       │   ├── company/           # Unternehmensseiten: leads.svelte.ts (alle Leads + Phasen live,
+│       │   │                      # aktive = Phase nicht closed), leads.ts + table.ts (rein: Zählen, Sortieren)
 │       │   ├── crm/               # CompanyDialog, ContactDialog, email-suggest.ts (Name und
 │       │   │                      # Unternehmen aus der E-Mail, rein), company-lookup.ts
 │       │   │                      # (Website-Daten über die Hook-Route)
@@ -150,7 +152,7 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       └── routes/                # +layout.ts (ssr=false), +layout.svelte (Guard +
 │                                  # Navigation), +page.svelte (-> /leads),
 │                                  # leads/ (Pipeline), leads/[id]/ (Detailseite), todos/,
-│                                  # kontakte/, unternehmen/, login/, profil/ (Profilbild,
+│                                  # kontakte/, unternehmen/ (+ [id]/ Detailseite), login/, profil/ (Profilbild,
 │                                  # API-Tokens: lib/tokens/; Zugang über das Benutzermenü)
 ├── mcp/                           # MCP-Dienst (Node, eigenes package.json, nur lesen): server.js
 │                                  # (Host/Origin, Token-Tausch pro Request), tools.js, prompts.js,
