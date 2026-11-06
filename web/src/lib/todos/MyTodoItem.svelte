@@ -41,7 +41,7 @@
 				{due}
 			</span>
 			{#if lead}
-				<!-- the quick view on the pipeline (it has "Öffnen" for the detail page) -->
+				<!-- the quick view on the pipeline (its expand button opens the detail page) -->
 				<a
 					href={previewHref(lead.id)}
 					class="min-w-0 truncate font-medium text-primary hover:underline"

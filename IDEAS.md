@@ -37,7 +37,7 @@ Bearbeiten-Dialogs. Von dort geht es zum Bearbeiten oder zur vollständigen Ansi
 * Klick (oder Enter/Leertaste) auf eine Karte öffnet ein Pop-up mit: Titel, Phase (mit
   Farbpunkt), Unternehmen, Kontakte (Name, Position), voraussichtlicher Abschluss
   (überfällig rot), Zuständiger, Erstellt am.
-* Buttons: **„Öffnen"** → `/leads/<id>` (F2), **„Bearbeiten"** → bestehender
+* Buttons: **Expand-Icon** („Vollbild öffnen") → `/leads/<id>` (F2), **„Bearbeiten"** → bestehender
   `LeadDialog`. Schließen per Esc, Klick daneben oder X.
 * Drag & Drop bleibt unverändert: ein Drag öffnet das Pop-up nicht.
 * Das Pop-up aktualisiert sich live, wenn jemand den Lead währenddessen ändert; wird er

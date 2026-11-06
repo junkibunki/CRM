@@ -3,6 +3,7 @@
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ClockIcon from '@lucide/svelte/icons/clock';
+	import ExpandIcon from '@lucide/svelte/icons/expand';
 	import HistoryIcon from '@lucide/svelte/icons/history';
 	import ListTodoIcon from '@lucide/svelte/icons/list-todo';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -236,7 +237,14 @@
 
 			<Dialog.Footer>
 				<Button variant="outline" onclick={edit}>Bearbeiten</Button>
-				<Button href="/leads/{v.lead.id}">Öffnen</Button>
+				<Button
+					href="/leads/{v.lead.id}"
+					size="icon"
+					title="Vollbild öffnen"
+					aria-label="Vollbild öffnen"
+				>
+					<ExpandIcon />
+				</Button>
 			</Dialog.Footer>
 		{/if}
 	</Dialog.Content>
