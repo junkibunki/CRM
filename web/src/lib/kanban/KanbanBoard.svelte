@@ -131,7 +131,8 @@
 		leadColumn = null;
 		leadOpen = true;
 	}
-	function newLead(c: BoardColumn) {
+	// also called by the page header ("Neuer Lead", via bind:this)
+	export function newLead(c: BoardColumn) {
 		lead = null;
 		leadColumn = c;
 		leadOpen = true;

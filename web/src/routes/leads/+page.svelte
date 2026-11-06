@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { BoardStore } from '#lib/board.svelte.js';
@@ -9,6 +10,7 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import BoardSettingsDialog from '#lib/kanban/BoardSettingsDialog.svelte';
 	import KanbanBoard from '#lib/kanban/KanbanBoard.svelte';
+	import { entryColumn } from '#lib/kanban/new-lead.js';
 	import { leadFromQuery } from '#lib/kanban/preview.js';
 	import { liveSync } from '#lib/live.js';
 	import { errorMessage, pb } from '#lib/pb.js';
@@ -73,6 +75,10 @@
 		if (page.url.searchParams.has('lead')) goto('/leads', { replace: true, reset: false });
 	}
 
+	// "Neuer Lead" in the header: into the first open stage; the board owns the dialog
+	let board = $state<KanbanBoard>();
+	const entry = $derived(store ? entryColumn(store.columns) : null);
+
 	function retry() {
 		error = '';
 		store = null;
@@ -96,6 +102,16 @@
 				onclick={() => (settingsOpen = true)}
 			>
 				<SettingsIcon />
+			</Button>
+		{/if}
+		{#if store?.board && !store.loading && !store.deleted}
+			<Button
+				class="ml-auto"
+				disabled={!entry}
+				title={entry ? undefined : 'Keine offene Phase in der Pipeline'}
+				onclick={() => entry && board?.newLead(entry)}
+			>
+				<PlusIcon /> Neuer Lead
 			</Button>
 		{/if}
 	</div>
@@ -140,6 +156,7 @@
 	{:else if store.board}
 		<div class="min-h-0 flex-1">
 			<KanbanBoard
+				bind:this={board}
 				{store}
 				todos={todos ?? undefined}
 				activity={activity ?? undefined}

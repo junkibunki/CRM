@@ -30,6 +30,7 @@
 		type Lead,
 		type LeadData
 	} from '#lib/types.js';
+	import { DEFAULT_LEAD_TITLE } from './new-lead';
 
 	type Props = {
 		/** BoardStore on the board, LeadStore on the detail page */
@@ -74,7 +75,13 @@
 						expected_close: toDateInput(l.expected_close),
 						owner: l.owner
 					}
-				: { title: '', company: '', contacts: [], expected_close: '', owner: auth.user?.id ?? '' };
+				: {
+						title: DEFAULT_LEAD_TITLE,
+						company: '',
+						contacts: [],
+						expected_close: '',
+						owner: auth.user?.id ?? ''
+					};
 			initial = l ? toData() : null;
 			error = '';
 		});
