@@ -29,11 +29,13 @@ importiert (`@lucide/svelte/icons/<name>`), damit nur genutzte Icons im Bundle l
 * **Kein `tailwind.config.js`.** Konfiguration steckt in `web/src/app.css`:
   `@import 'tailwindcss'`, Tokens als CSS-Variablen, `@theme inline` bildet sie auf
   Utility-Namen ab (`--color-card` → `bg-card`).
-* **Dark Mode über `prefers-color-scheme` braucht eine eigene `@custom-variant`.** Die
-  shadcn-Vorgabe `@custom-variant dark (&:is(.dark *))` ist ein Klassenschalter; ohne
-  Umstellung auf `@custom-variant dark (@media (prefers-color-scheme: dark))` greifen die
-  `dark:`-Utilities *in den generierten Komponenten* nie. Symptom: dunkel sieht fast
-  richtig aus, einzelne Flächen (z. B. `dark:bg-input/30`) bleiben hell.
+* **Dark Mode hängt an der Klasse `.dark` auf `<html>`, nicht an `prefers-color-scheme`.**
+  Schalter im Benutzermenü, Zustand in `lib/theme.svelte.ts` (localStorage `crm-theme`,
+  ohne Wahl folgt es dem Gerät); `app.html` setzt die Klasse schon vor dem ersten Bild.
+  Symptom bei einem Rückfall auf `@media (prefers-color-scheme: dark)` — in Tokens
+  (`blueberk.css`) oder in der `@custom-variant`: Gerät dunkel + Schalter hell ergibt eine
+  Mischung, einzelne Flächen (`dark:bg-input/30`) oder alle Tokens bleiben dunkel.
+  Dunkle Werte deshalb immer unter `.dark { … }` bzw. `dark:` schreiben.
 * **`--chart-*` und `--sidebar-*` fehlen bewusst in `app.css`.** Wer per `add` eine
   Chart- oder Sidebar-Komponente holt, muss die Tokens aus
   `https://shadcn-svelte.com/registry/colors/neutral.json` nachtragen.

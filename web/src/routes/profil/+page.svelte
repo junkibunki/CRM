@@ -4,6 +4,7 @@
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Card from '#lib/components/ui/card/index.js';
+	import AvatarCard from '#lib/profile/AvatarCard.svelte';
 	import CopyButton from '#lib/tokens/CopyButton.svelte';
 	import { claudeCommand, jsonConfig, mcpUrl } from '#lib/tokens/format.js';
 	import TokenCreate from '#lib/tokens/TokenCreate.svelte';
@@ -45,6 +46,8 @@
 				</Button>
 			</div>
 		{/if}
+
+		<AvatarCard />
 
 		<Card.Root>
 			<Card.Header>

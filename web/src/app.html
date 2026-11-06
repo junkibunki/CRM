@@ -6,6 +6,15 @@
 		<!-- links in pasted e-mails must not trigger DNS lookups (tracking via DNS) -->
 		<meta http-equiv="x-dns-prefetch-control" content="off" />
 		<meta name="text-scale" content="scale" />
+		<!-- set the theme before the first paint (no light flash); same rule as resolveDark()
+		     in src/lib/theme.svelte.ts -->
+		<script>
+			try {
+				var t = localStorage.getItem('crm-theme');
+				if (t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches))
+					document.documentElement.classList.add('dark');
+			} catch (e) {}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

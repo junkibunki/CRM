@@ -112,6 +112,10 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       │   ├── pb.ts              # PB-Client (same origin), 401 -> abmelden, Fehlertexte
 │       │   ├── auth.svelte.ts     # authStore-Spiegel, login/logout, refresh() prüft Session
 │       │   │                      # (bei Reconnect + Tab-Fokus; abgelaufen = Gast, kein 401)
+│       │   ├── theme.svelte.ts    # Hell/Dunkel: Klasse .dark auf <html>, gespeicherte Wahl
+│       │   │                      # oder Gerät (app.html setzt sie vor dem ersten Bild)
+│       │   ├── profile/           # UserMenu (Avatar-Kreis oben rechts: Profil, Dunkel-Schalter,
+│       │   │                      # Abmelden), UserAvatar, AvatarCard, avatar.ts (Upload, Initialen)
 │       │   ├── types.ts           # Record-Typen (Company, Contact, Lead, …), Farben,
 │       │   │                      # Kartenfelder, Datums-Helfer, DnD-Daten
 │       │   ├── live.ts            # liveSync(): Abo + Laden ohne Lücke, Reconnect-Reload
@@ -144,8 +148,8 @@ damit sie nur Kontext kosten, wenn sie gebraucht werden.
 │       └── routes/                # +layout.ts (ssr=false), +layout.svelte (Guard +
 │                                  # Navigation), +page.svelte (-> /leads),
 │                                  # leads/ (Pipeline), leads/[id]/ (Detailseite), todos/,
-│                                  # kontakte/, unternehmen/, login/, profil/ (API-Tokens,
-│                                  # lib/tokens/)
+│                                  # kontakte/, unternehmen/, login/, profil/ (Profilbild,
+│                                  # API-Tokens: lib/tokens/; Zugang über das Benutzermenü)
 ├── mcp/                           # MCP-Dienst (Node, eigenes package.json, nur lesen): server.js
 │                                  # (Host/Origin, Token-Tausch pro Request), tools.js, prompts.js,
 │                                  # render.js/format.js (Text, Kürzen, FREMDTEXT-Marken); liest
