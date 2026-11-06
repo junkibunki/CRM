@@ -8,6 +8,38 @@ Schlankes internes CRM. Backend: [PocketBase](https://pocketbase.io) (pinned 0.4
 - **Kontakte** und **Unternehmen** – pflegen, suchen; Kontakte gehören optional zu einem
   Unternehmen.
 
+## Überblick
+
+**Leads-Pipeline** – Kanban-Board mit konfigurierbaren Phasen, nächstem To-Do und offenen
+Bedingungen je Karte:
+
+![Leads-Pipeline](docs/screenshots/leads-pipeline.png)
+
+**Schnellansicht** – Klick auf eine Karte zeigt die wichtigsten Daten, ohne das Board zu
+verlassen:
+
+![Schnellansicht eines Leads](docs/screenshots/lead-schnellansicht.png)
+
+**Lead-Detailseite** – Aktivitäten-Timeline (Notizen, Meetings, E-Mails mit Anhängen),
+Kontakte, Unternehmen, To-Dos und Bedingungen für den Phasenwechsel:
+
+![Lead-Detailseite](docs/screenshots/lead-detail.png)
+
+**Meine To-Dos** – gruppiert nach überfällig, heute, diese Woche und später:
+
+![Meine To-Dos](docs/screenshots/todos.png)
+
+**Kontakte** und **Unternehmen** – sortierbar, Kontakte nach Unternehmen gruppiert; die
+Unternehmensseite zeigt aktive Leads und Kontakte:
+
+![Kontakte](docs/screenshots/kontakte.png)
+
+![Unternehmensseite](docs/screenshots/unternehmen-detail.png)
+
+**Dark Mode** – über das Benutzermenü oder automatisch nach Geräteeinstellung:
+
+![Leads-Pipeline im Dark Mode](docs/screenshots/leads-pipeline-dark.png)
+
 ## Struktur
 
 - `pocketbase/` – PocketBase-Instanz; `pb_migrations/` ist versioniert (Schema), `pb_data/` nicht
